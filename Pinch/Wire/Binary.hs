@@ -17,17 +17,52 @@ import qualified Data.ByteString         as B
 import qualified Data.ByteString.Builder as BB
 import qualified Data.HashMap.Strict     as M
 import qualified Data.HashSet            as S
+import qualified Data.Text.Encoding      as TE
 import qualified Data.Vector             as V
 
-import Pinch.Internal.Parser (Parser, runParser)
+import Pinch.Internal.Message
+import Pinch.Internal.Parser  (Parser, runParser)
 import Pinch.Internal.TType
 import Pinch.Internal.Value
-import Pinch.Wire            (Protocol (..))
+import Pinch.Wire             (Protocol (..))
 
 import qualified Pinch.Internal.Parser as P
 
 binaryProtocol :: Protocol
-binaryProtocol = Protocol binarySerialize binaryDeserialize
+binaryProtocol = Protocol
+    { serializeValue     = binarySerialize
+    , deserializeValue   = binaryDeserialize
+    , serializeMessage   = binarySerializeMessage
+    , deserializeMessage = binaryDeserializeMessage
+    }
+
+------------------------------------------------------------------------------
+
+binarySerializeMessage :: Message a -> Builder
+binarySerializeMessage msg = mconcat
+    [ binarySerialize . VBinary . TE.encodeUtf8 $ messageName msg
+    , BB.word8 $ messageCode (messageType msg)
+    , BB.int32BE (messageId msg)
+    , binarySerialize (messageBody msg)
+    ]
+
+binaryDeserializeMessage :: TType a -> ByteString -> Either String (Message a)
+binaryDeserializeMessage t = runParser (binaryMessageParser t)
+
+binaryMessageParser :: TType a -> Parser (Message a)
+binaryMessageParser t =
+    Message
+        <$> (TE.decodeUtf8 . vbinary <$> parseBinary)
+        <*> parseMessageType
+        <*> P.int32
+        <*> binaryParser t
+
+parseMessageType :: Parser MessageType
+parseMessageType = P.word8 >>= \code -> case fromMessageCode code of
+    Nothing -> fail $ "Unknown message type: " ++ show code
+    Just t -> return t
+
+------------------------------------------------------------------------------
 
 binaryDeserialize :: TType a -> ByteString -> Either String (Value a)
 binaryDeserialize t = runParser (binaryParser t)

@@ -12,10 +12,11 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules  : Pinch.Pinchable
+  exposed-modules  : Pinch.Internal.Message
                    , Pinch.Internal.Parser
                    , Pinch.Internal.TType
                    , Pinch.Internal.Value
+                   , Pinch.Pinchable
                    , Pinch.Wire
                    , Pinch.Wire.Binary
   ghc-options      : -Wall
