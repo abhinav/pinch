@@ -25,7 +25,6 @@ module Pinch.Internal.TType
     ) where
 
 import Data.Hashable (Hashable (..))
-import Data.Proxy    (Proxy)
 import Data.Typeable (Typeable)
 import Data.Word     (Word8)
 
@@ -61,20 +60,20 @@ deriving instance Eq (TType a)
 
 
 class Typeable a => IsTType a where
-    ttype :: Proxy a -> TType a
+    ttype :: TType a
 
 
-instance IsTType TBool   where ttype _ = TBool
-instance IsTType TByte   where ttype _ = TByte
-instance IsTType TDouble where ttype _ = TDouble
-instance IsTType TInt16  where ttype _ = TInt16
-instance IsTType TInt32  where ttype _ = TInt32
-instance IsTType TInt64  where ttype _ = TInt64
-instance IsTType TBinary where ttype _ = TBinary
-instance IsTType TStruct where ttype _ = TStruct
-instance IsTType TMap    where ttype _ = TMap
-instance IsTType TSet    where ttype _ = TSet
-instance IsTType TList   where ttype _ = TList
+instance IsTType TBool   where ttype = TBool
+instance IsTType TByte   where ttype = TByte
+instance IsTType TDouble where ttype = TDouble
+instance IsTType TInt16  where ttype = TInt16
+instance IsTType TInt32  where ttype = TInt32
+instance IsTType TInt64  where ttype = TInt64
+instance IsTType TBinary where ttype = TBinary
+instance IsTType TStruct where ttype = TStruct
+instance IsTType TMap    where ttype = TMap
+instance IsTType TSet    where ttype = TSet
+instance IsTType TList   where ttype = TList
 
 data SomeTType where
     SomeTType :: forall a. IsTType a => TType a -> SomeTType

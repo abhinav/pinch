@@ -10,7 +10,6 @@ import Data.HashMap.Strict     (HashMap)
 import Data.HashSet            (HashSet)
 import Data.Int                (Int16)
 import Data.Monoid
-import Data.Proxy              (Proxy (..))
 import Data.Vector             (Vector)
 import Data.Word               (Word8)
 
@@ -136,49 +135,48 @@ binarySerialize v0 = case v0 of
   VInt16   x -> BB.int16BE  x
   VInt32   x -> BB.int32BE  x
   VInt64   x -> BB.int64BE  x
-  VStruct  f -> serializeStruct f
-  VList   xs -> serializeList xs
-  VMap    xs -> serializeMap  xs
-  VSet    xs -> serializeSet  xs
+  VStruct xs -> serializeStruct xs
+  VList   xs -> serializeList ttype       xs
+  VMap    xs -> serializeMap  ttype ttype xs
+  VSet    xs -> serializeSet  ttype       xs
 
 
 serializeStruct :: HashMap Int16 SomeValue -> Builder
 serializeStruct fields =
     mconcat (map go (M.toList fields)) <> BB.word8 0
   where
-    go (fieldId, SomeValue fieldValue) = writeField fieldId fieldValue
+    go (fieldId, SomeValue fieldValue) =
+        writeField fieldId ttype fieldValue
 
-    writeField :: forall a. IsTType a => Int16 -> Value a -> Builder
-    writeField fieldId fieldValue = mconcat
-        [ BB.word8 . toCode $ ttype (Proxy :: Proxy a)
+    writeField :: Int16 -> TType a -> Value a -> Builder
+    writeField fieldId fieldType fieldValue = mconcat
+        [ BB.word8 $ toCode fieldType
         , BB.int16BE fieldId
         , binarySerialize fieldValue
         ]
 
 
-serializeList :: forall a. IsTType a => Vector (Value a) -> Builder
-serializeList xs = mconcat
-    [ BB.word8 . toCode $ ttype (Proxy :: Proxy a)
+serializeList :: TType a -> Vector (Value a) -> Builder
+serializeList vtype xs = mconcat
+    [ BB.word8   $ toCode vtype
     , BB.int32BE $ fromIntegral (V.length xs)
     , mconcat    $ map binarySerialize (V.toList xs)
     ]
 
 
-serializeMap
-    :: forall k v. (IsTType k, IsTType v)
-    => HashMap (Value k) (Value v) -> Builder
-serializeMap xs = mconcat
-    [ BB.word8  . toCode $ ttype (Proxy :: Proxy k)
-    , BB.word8  . toCode $ ttype (Proxy :: Proxy v)
+serializeMap :: TType k -> TType v -> HashMap (Value k) (Value v) -> Builder
+serializeMap kt vt xs = mconcat
+    [ BB.word8   $ toCode kt
+    , BB.word8   $ toCode vt
     , BB.int32BE $ fromIntegral (M.size xs)
     , mconcat    $
         map (\(k, v) -> binarySerialize k <> binarySerialize v) (M.toList xs)
     ]
 
 
-serializeSet :: forall a. IsTType a => HashSet (Value a) -> Builder
-serializeSet xs = mconcat
-    [ BB.word8 . toCode $ ttype (Proxy :: Proxy a)
+serializeSet :: TType a -> HashSet (Value a) -> Builder
+serializeSet vtype xs = mconcat
+    [ BB.word8   $ toCode vtype
     , BB.int32BE $ fromIntegral (S.size xs)
     , mconcat    $ map binarySerialize (S.toList xs)
     ]

@@ -6,7 +6,6 @@
 module Pinch.Internal.Value
     ( Value(..)
     , SomeValue(..)
-    , someValueTType
     ) where
 
 import Data.ByteString     (ByteString)
@@ -14,7 +13,6 @@ import Data.Hashable       (Hashable (..))
 import Data.HashMap.Strict (HashMap)
 import Data.HashSet        (HashSet)
 import Data.Int            (Int16, Int32, Int64)
-import Data.Proxy          (Proxy (..))
 import Data.Typeable       ((:~:) (..), Typeable, eqT)
 import Data.Vector         (Vector)
 import Data.Word           (Word8)
@@ -71,13 +69,6 @@ deriving instance Show SomeValue
 
 instance Eq SomeValue where
     SomeValue a == SomeValue b = areEqual a b
-
--- | Retrieves the TType for 'SomeValue'.
-someValueTType :: SomeValue -> SomeTType
-someValueTType (SomeValue v) = SomeTType (getTType v)
-  where
-    getTType :: forall a. IsTType a => Value a -> TType a
-    getTType _ = ttype (Proxy :: Proxy a)
 
 
 -- | Helper to compare two types that are not known to be equal at compile
