@@ -38,12 +38,9 @@ data Value a where
     VStruct :: { vstruct :: !(HashMap Int16 SomeValue) } -> Value TStruct
 
     VMap  :: forall k v. (IsTType k, IsTType v)
-          => !(TType k) -> !(TType v)
-          -> !(HashMap (Value k) (Value v)) -> Value TMap
-    VSet  :: forall a. IsTType a
-          => !(TType a) -> !(HashSet (Value a)) -> Value TSet
-    VList :: forall a. IsTType a
-          => !(TType a) -> !(Vector (Value a)) -> Value TList
+          => !(HashMap (Value k) (Value v)) -> Value TMap
+    VSet  :: forall a. IsTType a => !(HashSet (Value a)) -> Value TSet
+    VList :: forall a. IsTType a => !(Vector (Value a)) -> Value TList
   deriving Typeable
 
 deriving instance Show (Value a)
@@ -58,9 +55,9 @@ instance Eq (Value a) where
     VBinary a == VBinary b = a == b
     VStruct a == VStruct b = a == b
 
-    VMap ak av as == VMap bk bv bs = areEqualSeq2 ak av as bk bv bs
-    VSet    at as == VSet    bt bs = areEqualSeq at as bt bs
-    VList   at as == VList   bt bs = areEqualSeq at as bt bs
+    VMap  as == VMap  bs = areEqual as bs
+    VSet  as == VSet  bs = areEqual as bs
+    VList as == VList bs = areEqual as bs
 
     _ == _ = False
 
@@ -91,36 +88,6 @@ areEqual x y = case eqT of
     Nothing -> False
     Just (Refl :: a :~: b) -> x == y
 
-areEqualSeq
-    :: forall a b f.
-        ( Eq (f (Value a))
-        , Eq (f (Value b))
-        , IsTType a
-        , IsTType b
-        )
-    => TType a -> f (Value a) -> TType b -> f (Value b) -> Bool
-areEqualSeq at as bt bs = case eqT of
-    Nothing -> False
-    Just (Refl :: a :~: b) -> at == bt && as == bs
-
-
-areEqualSeq2
-    :: forall ak av bk bv f.
-        ( Eq (f (Value ak) (Value av))
-        , Eq (f (Value bk) (Value bv))
-        , IsTType ak, IsTType av
-        , IsTType bk, IsTType bv
-        )
-    => TType ak -> TType av -> f (Value ak) (Value av)
-    -> TType bk -> TType bv -> f (Value bk) (Value bv)
-    -> Bool
-areEqualSeq2 ak av as bk bv bs = case eqT of
-    Nothing -> False
-    Just (Refl :: ak :~: bk) -> case eqT of
-        Nothing -> False
-        Just (Refl :: av :~: bv) ->
-            ak == bk && av == bv && as == bs
-
 
 instance Hashable (Value a) where
     hashWithSalt s a = case a of
@@ -131,18 +98,17 @@ instance Hashable (Value a) where
       VInt16  x -> s `hashWithSalt` (4 :: Int) `hashWithSalt` x
       VInt32  x -> s `hashWithSalt` (5 :: Int) `hashWithSalt` x
       VInt64  x -> s `hashWithSalt` (6 :: Int) `hashWithSalt` x
-      VList t xs ->
-        V.foldr'
-          (flip hashWithSalt)
-          (s `hashWithSalt` (7 :: Int) `hashWithSalt` t) xs
-      VMap x y xs ->
+
+      VList xs ->
+        V.foldr' (flip hashWithSalt) (s `hashWithSalt` (7 :: Int)) xs
+      VMap xs ->
         M.foldrWithKey
           (\k v s' -> s' `hashWithSalt` k `hashWithSalt` v)
-          (s `hashWithSalt` (8 :: Int) `hashWithSalt` x `hashWithSalt` y) xs
-      VSet t xs ->
-        S.foldr
-          (flip hashWithSalt)
-          (s `hashWithSalt` (9 :: Int) `hashWithSalt` t) xs
+          (s `hashWithSalt` (8 :: Int))
+          xs
+      VSet xs ->
+        S.foldr (flip hashWithSalt) (s `hashWithSalt` (9 :: Int)) xs
+
       VStruct fields ->
         M.foldrWithKey (\k v s' -> s' `hashWithSalt` k `hashWithSalt` v)
                        (s `hashWithSalt` (10 :: Int))

@@ -87,7 +87,7 @@ parseMap = do
         pairs <- replicateM (fromIntegral count) $
             (,) <$> binaryParser ktype
                 <*> binaryParser vtype
-        return $ VMap ktype vtype (M.fromList pairs)
+        return $ VMap (M.fromList pairs)
 
 
 parseSet :: Parser (Value TSet)
@@ -98,7 +98,7 @@ parseSet = do
     case vtype' of
       SomeTType vtype -> do
           items <- replicateM (fromIntegral count) (binaryParser vtype)
-          return $ VSet vtype (S.fromList items)
+          return $ VSet (S.fromList items)
 
 
 parseList :: Parser (Value TList)
@@ -108,7 +108,7 @@ parseList = do
 
     case vtype' of
       SomeTType vtype ->
-        VList vtype <$> V.replicateM (fromIntegral count) (binaryParser vtype)
+        VList <$> V.replicateM (fromIntegral count) (binaryParser vtype)
 
 
 parseStruct :: Parser (Value TStruct)
@@ -129,17 +129,17 @@ parseStruct = P.word8 >>= loop M.empty
 
 binarySerialize :: Value a -> Builder
 binarySerialize v0 = case v0 of
-  VBinary   x -> BB.int32BE (fromIntegral $ B.length x) <> BB.byteString x
-  VBool     x -> BB.word8 $ if x then 1 else 0
-  VByte     x -> BB.word8    x
-  VDouble   x -> BB.doubleBE x
-  VInt16    x -> BB.int16BE  x
-  VInt32    x -> BB.int32BE  x
-  VInt64    x -> BB.int64BE  x
-  VStruct   f -> serializeStruct f
-  VList  t xs -> serializeList   t xs
-  VMap k v xs -> serializeMap  k v xs
-  VSet   t xs -> serializeSet    t xs
+  VBinary  x -> BB.int32BE (fromIntegral $ B.length x) <> BB.byteString x
+  VBool    x -> BB.word8 $ if x then 1 else 0
+  VByte    x -> BB.word8    x
+  VDouble  x -> BB.doubleBE x
+  VInt16   x -> BB.int16BE  x
+  VInt32   x -> BB.int32BE  x
+  VInt64   x -> BB.int64BE  x
+  VStruct  f -> serializeStruct f
+  VList   xs -> serializeList xs
+  VMap    xs -> serializeMap  xs
+  VSet    xs -> serializeSet  xs
 
 
 serializeStruct :: HashMap Int16 SomeValue -> Builder
@@ -150,33 +150,35 @@ serializeStruct fields =
 
     writeField :: forall a. IsTType a => Int16 -> Value a -> Builder
     writeField fieldId fieldValue = mconcat
-        [ BB.word8 $ toCode (ttype (Proxy :: Proxy a))
+        [ BB.word8 . toCode $ ttype (Proxy :: Proxy a)
         , BB.int16BE fieldId
         , binarySerialize fieldValue
         ]
 
 
-serializeList :: TType a -> Vector (Value a) -> Builder
-serializeList t xs = mconcat
-    [ BB.word8 (toCode t)
+serializeList :: forall a. IsTType a => Vector (Value a) -> Builder
+serializeList xs = mconcat
+    [ BB.word8 . toCode $ ttype (Proxy :: Proxy a)
     , BB.int32BE $ fromIntegral (V.length xs)
     , mconcat    $ map binarySerialize (V.toList xs)
     ]
 
 
-serializeMap :: TType k -> TType v -> HashMap (Value k) (Value v) -> Builder
-serializeMap kt vt xs = mconcat
-    [ BB.word8 (toCode kt)
-    , BB.word8 (toCode vt)
+serializeMap
+    :: forall k v. (IsTType k, IsTType v)
+    => HashMap (Value k) (Value v) -> Builder
+serializeMap xs = mconcat
+    [ BB.word8  . toCode $ ttype (Proxy :: Proxy k)
+    , BB.word8  . toCode $ ttype (Proxy :: Proxy v)
     , BB.int32BE $ fromIntegral (M.size xs)
     , mconcat    $
         map (\(k, v) -> binarySerialize k <> binarySerialize v) (M.toList xs)
     ]
 
 
-serializeSet :: TType a -> HashSet (Value a) -> Builder
-serializeSet t xs = mconcat
-    [ BB.word8 (toCode t)
+serializeSet :: forall a. IsTType a => HashSet (Value a) -> Builder
+serializeSet xs = mconcat
+    [ BB.word8 . toCode $ ttype (Proxy :: Proxy a)
     , BB.int32BE $ fromIntegral (S.size xs)
     , mconcat    $ map binarySerialize (S.toList xs)
     ]

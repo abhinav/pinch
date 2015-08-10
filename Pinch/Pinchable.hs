@@ -16,7 +16,6 @@ import Data.ByteString     (ByteString)
 import Data.Hashable       (Hashable)
 import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int64)
-import Data.Proxy          (Proxy (..))
 import Data.Text           (Text)
 import Data.Typeable       ((:~:) (..), Typeable, eqT)
 import Data.Vector         (Vector)
@@ -71,10 +70,8 @@ pinchMap
           -- ^ @foldrWithKey@
     -> m  -- ^ map that implements @foldrWithKey@
     -> Value TMap
-pinchMap folder = VMap ktype vtype . folder go HM.empty
+pinchMap folder = VMap . folder go HM.empty
   where
-    ktype = ttype (Proxy :: Proxy ktype)
-    vtype = ttype (Proxy :: Proxy vtype)
     go k v = HM.insert (pinch k) (pinch v)
 
 
@@ -121,19 +118,17 @@ instance Pinchable Int64 where
 instance Pinchable a => Pinchable (Vector a) where
     type PType (Vector a) = TList
 
-    pinch = VList vtype . V.map pinch
-      where vtype = ttype (Proxy :: Proxy (PType a))
+    pinch = VList . V.map pinch
 
-    unpinch (VList _ xs) = V.mapM checkedUnpinch xs
+    unpinch (VList xs) = V.mapM checkedUnpinch xs
     unpinch x = Left $ "Failed to read list. Got " ++ show x
 
 instance Pinchable a => Pinchable [a] where
     type PType [a] = TList
 
-    pinch = VList vtype . V.fromList . map pinch
-      where vtype = ttype (Proxy :: Proxy (PType a))
+    pinch = VList . V.fromList . map pinch
 
-    unpinch (VList _ xs) = mapM checkedUnpinch $ V.toList xs
+    unpinch (VList xs) = mapM checkedUnpinch $ V.toList xs
     unpinch x = Left $ "Failed to read list. Got " ++ show x
 
 instance
@@ -146,7 +141,7 @@ instance
 
     pinch = pinchMap HM.foldrWithKey
 
-    unpinch (VMap _ _ xs) =
+    unpinch (VMap xs) =
         fmap HM.fromList . mapM go $ HM.toList xs
       where go (k, v) = (,) <$> checkedUnpinch k <*> checkedUnpinch v
     unpinch x = Left $ "Failed to read map. Got " ++ show x
@@ -156,7 +151,7 @@ instance (Ord k, Pinchable k, Pinchable v) => Pinchable (M.Map k v) where
 
     pinch = pinchMap M.foldrWithKey
 
-    unpinch (VMap _ _ xs) =
+    unpinch (VMap xs) =
         fmap M.fromList . mapM go $ HM.toList xs
       where go (k, v) = (,) <$> checkedUnpinch k <*> checkedUnpinch v
     unpinch x = Left $ "Failed to read map. Got " ++ show x
@@ -164,19 +159,17 @@ instance (Ord k, Pinchable k, Pinchable v) => Pinchable (M.Map k v) where
 instance (Eq a, Hashable a, Pinchable a) => Pinchable (HS.HashSet a) where
     type PType (HS.HashSet a) = TSet
 
-    pinch = VSet vtype . HS.map pinch
-      where vtype = ttype (Proxy :: Proxy (PType a))
+    pinch = VSet . HS.map pinch
 
-    unpinch (VSet _ xs) =
+    unpinch (VSet xs) =
         fmap HS.fromList . mapM checkedUnpinch $ HS.toList xs
     unpinch x = Left $ "Failed to read set. Got " ++ show x
 
 instance (Ord a, Pinchable a) => Pinchable (S.Set a) where
     type PType (S.Set a) = TSet
 
-    pinch = VSet vtype . S.foldr (HS.insert . pinch) HS.empty
-      where vtype = ttype (Proxy :: Proxy (PType a))
+    pinch = VSet . S.foldr (HS.insert . pinch) HS.empty
 
-    unpinch (VSet _ xs) =
+    unpinch (VSet xs) =
         fmap S.fromList . mapM checkedUnpinch $ HS.toList xs
     unpinch x = Left $ "Failed to read set. Got " ++ show x
