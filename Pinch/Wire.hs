@@ -8,7 +8,7 @@ import Data.ByteString         (ByteString)
 import Data.ByteString.Builder (Builder)
 
 import Pinch.Internal.Message (Message)
-import Pinch.Internal.TType   (TType)
+import Pinch.Internal.TType   (IsTType)
 import Pinch.Internal.Value   (Value)
 
 data Protocol = Protocol
@@ -16,7 +16,7 @@ data Protocol = Protocol
     , serializeMessage :: forall a. Message a -> Builder
 
     , deserializeValue
-        :: forall a. TType a -> ByteString -> Either String (Value a)
+        :: forall a. IsTType a => ByteString -> Either String (Value a)
     , deserializeMessage
-        :: forall a. TType a -> ByteString -> Either String (Message a)
-    } -- TODO might be able to drop TType a argument
+        :: forall a. IsTType a => ByteString -> Either String (Message a)
+    }

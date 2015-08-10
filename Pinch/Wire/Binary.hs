@@ -31,7 +31,7 @@ import qualified Pinch.Internal.Parser as P
 binaryProtocol :: Protocol
 binaryProtocol = Protocol
     { serializeValue     = binarySerialize
-    , deserializeValue   = binaryDeserialize
+    , deserializeValue   = binaryDeserialize ttype
     , serializeMessage   = binarySerializeMessage
     , deserializeMessage = binaryDeserializeMessage
     }
@@ -46,16 +46,17 @@ binarySerializeMessage msg = mconcat
     , binarySerialize (messageBody msg)
     ]
 
-binaryDeserializeMessage :: TType a -> ByteString -> Either String (Message a)
-binaryDeserializeMessage t = runParser (binaryMessageParser t)
+binaryDeserializeMessage
+    :: IsTType a => ByteString -> Either String (Message a)
+binaryDeserializeMessage = runParser binaryMessageParser
 
-binaryMessageParser :: TType a -> Parser (Message a)
-binaryMessageParser t =
+binaryMessageParser :: IsTType a => Parser (Message a)
+binaryMessageParser =
     Message
         <$> (TE.decodeUtf8 . vbinary <$> parseBinary)
         <*> parseMessageType
         <*> P.int32
-        <*> binaryParser t
+        <*> binaryParser ttype
 
 parseMessageType :: Parser MessageType
 parseMessageType = P.word8 >>= \code -> case fromMessageCode code of

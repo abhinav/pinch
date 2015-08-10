@@ -140,6 +140,7 @@ int64 = mk <$> take 8
 {-# INLINE int64 #-}
 
 
+-- | Produces a 64-bit floating point number and advances the parser.
 double :: Parser Double
 double = do
     i <- int64
