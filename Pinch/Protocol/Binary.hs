@@ -84,7 +84,7 @@ binaryParser typ = case typ of
 
 getTType :: Word8 -> Parser SomeTType
 getTType code =
-    maybe (fail $ "Unknown TType: " ++ show code) return $ fromCode code
+    maybe (fail $ "Unknown TType: " ++ show code) return $ fromTypeCode code
 
 parseTType :: Parser SomeTType
 parseTType = P.word8 >>= getTType
@@ -186,7 +186,7 @@ serializeStruct fields =
 
     writeField :: Int16 -> TType a -> Value a -> Builder
     writeField fieldId fieldType fieldValue = mconcat
-        [ BB.word8 $ toCode fieldType
+        [ BB.word8 $ toTypeCode fieldType
         , BB.int16BE fieldId
         , binarySerialize fieldValue
         ]
@@ -194,7 +194,7 @@ serializeStruct fields =
 
 serializeList :: TType a -> Vector (Value a) -> Builder
 serializeList vtype xs = mconcat
-    [ BB.word8   $ toCode vtype
+    [ BB.word8   $ toTypeCode vtype
     , BB.int32BE $ fromIntegral (V.length xs)
     , mconcat    $ map binarySerialize (V.toList xs)
     ]
@@ -202,8 +202,8 @@ serializeList vtype xs = mconcat
 
 serializeMap :: TType k -> TType v -> HashMap (Value k) (Value v) -> Builder
 serializeMap kt vt xs = mconcat
-    [ BB.word8   $ toCode kt
-    , BB.word8   $ toCode vt
+    [ BB.word8   $ toTypeCode kt
+    , BB.word8   $ toTypeCode vt
     , BB.int32BE $ fromIntegral (M.size xs)
     , mconcat    $
         map (\(k, v) -> binarySerialize k <> binarySerialize v) (M.toList xs)
@@ -212,7 +212,56 @@ serializeMap kt vt xs = mconcat
 
 serializeSet :: TType a -> HashSet (Value a) -> Builder
 serializeSet vtype xs = mconcat
-    [ BB.word8   $ toCode vtype
+    [ BB.word8   $ toTypeCode vtype
     , BB.int32BE $ fromIntegral (S.size xs)
     , mconcat    $ map binarySerialize (S.toList xs)
     ]
+
+
+------------------------------------------------------------------------------
+
+
+messageCode :: MessageType -> Word8
+messageCode CallMessage      = 1
+messageCode ReplyMessage     = 2
+messageCode ExceptionMessage = 3
+messageCode OnewayMessage    = 4
+
+
+fromMessageCode :: Word8 -> Maybe MessageType
+fromMessageCode 1 = Just CallMessage
+fromMessageCode 2 = Just ReplyMessage
+fromMessageCode 3 = Just ExceptionMessage
+fromMessageCode 4 = Just OnewayMessage
+fromMessageCode _ = Nothing
+
+
+-- | Map a TType to its type code.
+toTypeCode :: TType a -> Word8
+toTypeCode TBool   = 2
+toTypeCode TByte   = 3
+toTypeCode TDouble = 4
+toTypeCode TInt16  = 6
+toTypeCode TInt32  = 8
+toTypeCode TInt64  = 10
+toTypeCode TBinary = 11
+toTypeCode TStruct = 12
+toTypeCode TMap    = 13
+toTypeCode TSet    = 14
+toTypeCode TList   = 15
+
+
+-- | Map a type code to the corresponding TType.
+fromTypeCode :: Word8 -> Maybe SomeTType
+fromTypeCode 2  = Just $ SomeTType TBool
+fromTypeCode 3  = Just $ SomeTType TByte
+fromTypeCode 4  = Just $ SomeTType TDouble
+fromTypeCode 6  = Just $ SomeTType TInt16
+fromTypeCode 8  = Just $ SomeTType TInt32
+fromTypeCode 10 = Just $ SomeTType TInt64
+fromTypeCode 11 = Just $ SomeTType TBinary
+fromTypeCode 12 = Just $ SomeTType TStruct
+fromTypeCode 13 = Just $ SomeTType TMap
+fromTypeCode 14 = Just $ SomeTType TSet
+fromTypeCode 15 = Just $ SomeTType TList
+fromTypeCode _  = Nothing

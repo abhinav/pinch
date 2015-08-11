@@ -7,9 +7,6 @@ module Pinch.Internal.TType
     , IsTType(..)
     , SomeTType(..)
 
-    , fromCode
-    , toCode
-
     -- * Tags
     , TBool
     , TByte
@@ -26,7 +23,6 @@ module Pinch.Internal.TType
 
 import Data.Hashable (Hashable (..))
 import Data.Typeable (Typeable)
-import Data.Word     (Word8)
 
 data TBool   deriving (Typeable)
 data TByte   deriving (Typeable)
@@ -59,21 +55,17 @@ deriving instance Show (TType a)
 deriving instance Eq (TType a)
 
 instance Hashable (TType a) where
-    hashWithSalt s t = s `hashWithSalt` toCode t
-
--- | Map a TType to its type code.
-toCode :: TType a -> Word8
-toCode TBool   = 2
-toCode TByte   = 3
-toCode TDouble = 4
-toCode TInt16  = 6
-toCode TInt32  = 8
-toCode TInt64  = 10
-toCode TBinary = 11
-toCode TStruct = 12
-toCode TMap    = 13
-toCode TSet    = 14
-toCode TList   = 15
+    hashWithSalt s TBool   = s `hashWithSalt` (0  :: Int)
+    hashWithSalt s TByte   = s `hashWithSalt` (1  :: Int)
+    hashWithSalt s TDouble = s `hashWithSalt` (2  :: Int)
+    hashWithSalt s TInt16  = s `hashWithSalt` (3  :: Int)
+    hashWithSalt s TInt32  = s `hashWithSalt` (4  :: Int)
+    hashWithSalt s TInt64  = s `hashWithSalt` (5  :: Int)
+    hashWithSalt s TBinary = s `hashWithSalt` (6  :: Int)
+    hashWithSalt s TStruct = s `hashWithSalt` (7  :: Int)
+    hashWithSalt s TMap    = s `hashWithSalt` (8  :: Int)
+    hashWithSalt s TSet    = s `hashWithSalt` (9  :: Int)
+    hashWithSalt s TList   = s `hashWithSalt` (10 :: Int)
 
 
 -- | Type class used to map type-leve TTypes into 'TType' objects.
@@ -102,19 +94,3 @@ instance IsTType TList   where ttype = TList
 -- that depends on the TType will be go there.
 data SomeTType where
     SomeTType :: forall a. IsTType a => TType a -> SomeTType
-
-
--- | Map a type code to the corresponding TType.
-fromCode :: Word8 -> Maybe SomeTType
-fromCode 2  = Just $ SomeTType TBool
-fromCode 3  = Just $ SomeTType TByte
-fromCode 4  = Just $ SomeTType TDouble
-fromCode 6  = Just $ SomeTType TInt16
-fromCode 8  = Just $ SomeTType TInt32
-fromCode 10 = Just $ SomeTType TInt64
-fromCode 11 = Just $ SomeTType TBinary
-fromCode 12 = Just $ SomeTType TStruct
-fromCode 13 = Just $ SomeTType TMap
-fromCode 14 = Just $ SomeTType TSet
-fromCode 15 = Just $ SomeTType TList
-fromCode _  = Nothing
