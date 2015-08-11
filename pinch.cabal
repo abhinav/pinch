@@ -17,8 +17,8 @@ library
                    , Pinch.Internal.TType
                    , Pinch.Internal.Value
                    , Pinch.Pinchable
-                   , Pinch.Wire
-                   , Pinch.Wire.Binary
+                   , Pinch.Protocol
+                   , Pinch.Protocol.Binary
   ghc-options      : -Wall
   build-depends    : base                 >= 4.8  && < 4.9
 

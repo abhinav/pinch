@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
-module Pinch.Wire
+module Pinch.Protocol
     ( Protocol(..)
     ) where
     -- TODO move to internal, don't export everything

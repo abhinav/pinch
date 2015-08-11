@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Pinch.Wire.Binary (binaryProtocol) where
+module Pinch.Protocol.Binary (binaryProtocol) where
 
 import Control.Monad
 
@@ -24,7 +24,7 @@ import Pinch.Internal.Message
 import Pinch.Internal.Parser  (Parser, runParser)
 import Pinch.Internal.TType
 import Pinch.Internal.Value
-import Pinch.Wire             (Protocol (..))
+import Pinch.Protocol         (Protocol (..))
 
 import qualified Pinch.Internal.Parser as P
 
