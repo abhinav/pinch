@@ -212,10 +212,13 @@ struct = VStruct . HM.fromList
     someValue <- note ("Field " ++ show fieldId ++ " is absent.")
                $ fieldId `HM.lookup` items
     (value :: Value (PType a)) <-
-        note ("Field " ++ show fieldId ++ " has the incorrect type.") $
-        castValue someValue
+        note ("Field " ++ show fieldId ++ " has the incorrect type. " ++
+              "Expected '" ++ show (ttype :: TType (PType a)) ++ "' but " ++
+              "got '" ++ showSomeValueTType someValue ++ "'")
+          $ castValue someValue
     unpinch value
   where
+    showSomeValueTType (SomeValue v) = show (valueTType v)
     note msg m = case m of
         Nothing -> Left msg
         Just v -> Right v

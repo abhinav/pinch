@@ -7,6 +7,7 @@ module Pinch.Internal.Value
     ( Value(..)
     , SomeValue(..)
     , castValue
+    , valueTType
     ) where
 
 import Data.ByteString     (ByteString)
@@ -83,6 +84,8 @@ castValue (SomeValue v) = doCast v
         Nothing -> Nothing
         Just (Refl :: a :~: b) -> Just x
 
+valueTType :: IsTType a => Value a -> TType a
+valueTType _ = ttype
 
 -- | Helper to compare two types that are not known to be equal at compile
 -- time.
