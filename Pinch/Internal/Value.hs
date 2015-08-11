@@ -6,6 +6,7 @@
 module Pinch.Internal.Value
     ( Value(..)
     , SomeValue(..)
+    , castValue
     ) where
 
 import Data.ByteString     (ByteString)
@@ -69,6 +70,18 @@ deriving instance Show SomeValue
 
 instance Eq SomeValue where
     SomeValue a == SomeValue b = areEqual a b
+
+
+-- | Safely cast 'SomeValue' into a 'Value'.
+castValue :: Typeable a => SomeValue -> Maybe (Value a)
+castValue (SomeValue v) = doCast v
+  where
+    doCast
+        :: forall a b. (Typeable a, Typeable b)
+        => Value b -> Maybe (Value a)
+    doCast x = case eqT of
+        Nothing -> Nothing
+        Just (Refl :: a :~: b) -> Just x
 
 
 -- | Helper to compare two types that are not known to be equal at compile

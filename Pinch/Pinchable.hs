@@ -1,10 +1,24 @@
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 module Pinch.Pinchable
     ( Pinchable(..)
+
+    -- * Writing instances
+
+    -- ** @pinch@
+
+    , (.=)
+    , struct
+    , FieldPair
+
+    -- ** @unpinch@
+
+    , (.:)
+    , (.:?)
     ) where
 
 
@@ -44,6 +58,12 @@ class IsTType (PType a) => Pinchable a where
     unpinch :: Value (PType a) -> Either String a
 
     -- TODO: Use a parser type instead of Either?
+
+
+instance IsTType a => Pinchable (Value a) where
+    type PType (Value a) = a
+    pinch = id
+    unpinch = Right
 
 
 -- | Helper to 'unpinch' values by matching TTypes.
@@ -173,3 +193,39 @@ instance (Ord a, Pinchable a) => Pinchable (S.Set a) where
     unpinch (VSet xs) =
         fmap S.fromList . mapM checkedUnpinch $ HS.toList xs
     unpinch x = Left $ "Failed to read set. Got " ++ show x
+
+------------------------------------------------------------------------------
+
+-- | A pair of field identifier and value stored in the field.
+type FieldPair = (Int16, SomeValue)
+
+-- | Construct a 'FieldPair' from a field identifier and a pinchable value.
+(.=) :: Pinchable a => Int16 -> a -> FieldPair
+fid .= value = (fid, SomeValue (pinch value))
+
+-- | Construct a struct value from the given key-value pairs.
+struct :: [FieldPair] -> Value TStruct
+struct = VStruct . HM.fromList
+
+(.:) :: forall a. Pinchable a => Value TStruct -> Int16 -> Either String a
+(VStruct items) .: fieldId = do
+    someValue <- note ("Field " ++ show fieldId ++ " is absent.")
+               $ fieldId `HM.lookup` items
+    (value :: Value (PType a)) <-
+        note ("Field " ++ show fieldId ++ " has the incorrect type.") $
+        castValue someValue
+    unpinch value
+  where
+    note msg m = case m of
+        Nothing -> Left msg
+        Just v -> Right v
+
+(.:?) :: forall a. Pinchable a
+      => Value TStruct -> Int16 -> Either String (Maybe a)
+(VStruct items) .:? fieldId =
+    case value of
+        Nothing -> return Nothing
+        Just v  -> Just <$> unpinch v
+  where
+    value :: Maybe (Value (PType a))
+    value = fieldId `HM.lookup` items >>= castValue
