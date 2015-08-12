@@ -70,7 +70,7 @@ instance T.IsTType a => Arbitrary (V.Value a) where
         T.TInt32 -> V.VInt32 <$> arbitrary
         T.TInt64 -> V.VInt64 <$> arbitrary
         T.TBinary -> V.VBinary . getSomeByteString <$> arbitrary
-        T.TStruct -> V.VStruct . M.fromList <$> halfSize arbitrary
+        T.TStruct -> genStruct
         T.TMap -> do
             ktype <- arbitrary
             vtype <- arbitrary
@@ -80,6 +80,11 @@ instance T.IsTType a => Arbitrary (V.Value a) where
         T.TSet -> arbitrary >>= \(T.SomeTType t) -> V.VSet <$> genSet t
         T.TList -> arbitrary >>= \(T.SomeTType t) -> V.VList <$> genVec t
       where
+        genStruct = halfSize $ V.VStruct . M.fromList <$> listOf genField
+          where
+            genField = (,) <$> (getPositive <$> arbitrary)
+                           <*> arbitrary
+
         genMap :: (T.IsTType k, T.IsTType v)
                => T.TType k -> T.TType v
                -> Gen (M.HashMap (V.Value k) (V.Value v))
