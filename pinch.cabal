@@ -11,6 +11,11 @@ category:            Development
 build-type:          Simple
 cabal-version:       >=1.10
 
+source-repository head
+  type    : git
+  location: git://github.com/abhinav/pinch.git
+
+
 library
   exposed-modules  : Pinch.Internal.Message
                    , Pinch.Internal.Parser
@@ -32,6 +37,19 @@ library
   default-language : Haskell2010
 
 
-source-repository head
-  type    : git
-  location: git://github.com/abhinav/pinch.git
+test-suite pinch-spec
+  type             : exitcode-stdio-1.0
+  hs-source-dirs   : tests
+  ghc-options      : -Wall
+  main-is          : Spec.hs
+  other-modules    : Pinch.Arbitrary
+                   , Pinch.Internal.ParserSpec
+                   , Pinch.Internal.TTypeSpec
+  build-depends    : base
+                   , bytestring
+                   , hspec            >= 2.0
+                   , hspec-discover   >= 2.1
+                   , QuickCheck       >= 2.5
+
+                   , pinch
+  default-language : Haskell2010

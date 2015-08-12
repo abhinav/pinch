@@ -94,3 +94,6 @@ instance IsTType TList   where ttype = TList
 -- that depends on the TType will be go there.
 data SomeTType where
     SomeTType :: forall a. IsTType a => TType a -> SomeTType
+  deriving Typeable
+
+deriving instance Show SomeTType

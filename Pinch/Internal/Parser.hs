@@ -34,8 +34,6 @@ type Failure   r = String          -> r
 type Success a r = ByteString -> a -> r
 
 -- | A simple ByteString parser.
---
--- This parser does not support backtracking.
 newtype Parser a = Parser
     { unParser :: forall r.
           ByteString   -- Bytestring being parsed
