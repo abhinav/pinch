@@ -62,8 +62,6 @@ instance Arbitrary V.SomeValue where
 
 
 instance T.IsTType a => Arbitrary (V.Value a) where
-    -- TODO ensure that list, set, and map use consistent types for elements.
-
     arbitrary = case T.ttype :: T.TType a of
         T.TBool -> V.VBool <$> arbitrary
         T.TByte -> V.VByte <$> arbitrary

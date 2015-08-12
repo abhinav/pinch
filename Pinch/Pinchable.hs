@@ -57,8 +57,6 @@ class IsTType (PType a) => Pinchable a where
     -- | Read a 'Value' back from @a@.
     unpinch :: Value (PType a) -> Either String a
 
-    -- TODO: Use a parser type instead of Either?
-
 
 instance IsTType a => Pinchable (Value a) where
     type PType (Value a) = a

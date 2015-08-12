@@ -2,7 +2,6 @@
 module Pinch.Protocol
     ( Protocol(..)
     ) where
-    -- TODO move to internal, don't export everything
 
 import Data.ByteString         (ByteString)
 import Data.ByteString.Builder (Builder)
