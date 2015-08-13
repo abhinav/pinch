@@ -2,12 +2,33 @@
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE StandaloneDeriving #-}
+-- |
+-- Module      :  Pinch.Internal.TType
+-- Copyright   :  (c) Abhinav Gupta 2015
+-- License     :  BSD3
+--
+-- Maintainer  :  Abhinav Gupta <mail@abhinavg.net>
+-- Stability   :  experimental
+--
+-- Defines the different types Thrift supports at the protocol level.
+--
 module Pinch.Internal.TType
-    ( TType(..)
+    (
+    -- * TType
+
+    -- | TType is used to refer to the protocol-level Thrift type of a value.
+    --
+    -- For most basic types, it's just that type: @bool@, @byte@, etc. For
+    -- @string@ and @binary@, it's always @binary@; Thrift doesn't
+    -- differentiate between text and binary at the protocol level. Enums use
+    -- @i32@, and all structs, exceptions, and unions use @struct@.
+
+      TType(..)
     , IsTType(..)
     , SomeTType(..)
 
     -- * Tags
+
     , TBool
     , TByte
     , TDouble
@@ -24,19 +45,46 @@ module Pinch.Internal.TType
 import Data.Hashable (Hashable (..))
 import Data.Typeable (Typeable)
 
+-- | @bool@
 data TBool   deriving (Typeable)
+
+-- | @byte@
 data TByte   deriving (Typeable)
+
+-- | @double@
 data TDouble deriving (Typeable)
+
+-- | @i16@
 data TInt16  deriving (Typeable)
+
+-- | @i32@
 data TInt32  deriving (Typeable)
+
+-- | @i64@
 data TInt64  deriving (Typeable)
+
+-- | @binary@ and @string@
 data TBinary deriving (Typeable)
+
+-- | @struct@, @union@, and @exception@
 data TStruct deriving (Typeable)
+
+
+-- | @map\<k, v\>@
 data TMap    deriving (Typeable)
+
+-- | @set\<x\>@
 data TSet    deriving (Typeable)
+
+-- | @list\<x\>@
 data TList   deriving (Typeable)
 
 
+-- | Represents the type of a Thrift value.
+--
+-- Objects of this type are tagged with one of the TType tags, so this type
+-- also acts as a singleton on the TTypes. It allows writing code that can
+-- enforce properties about the TType of values at compile time.
 data TType a where
     TBool   :: TType TBool    -- 2
     TByte   :: TType TByte    -- 3
@@ -68,7 +116,8 @@ instance Hashable (TType a) where
     hashWithSalt s TList   = s `hashWithSalt` (10 :: Int)
 
 
--- | Type class used to map type-leve TTypes into 'TType' objects.
+-- | Typeclass used to map type-leve TTypes into 'TType' objects. All TType
+-- tags are instances of this class.
 class Typeable a => IsTType a where
     -- | Base on the context in which this is used, it will automatically
     -- return the corresponding 'TType' object.
@@ -89,7 +138,6 @@ instance IsTType TList   where ttype = TList
 
 
 -- | Used when the 'TType' for something is not known at compile time.
---
 -- Typically, this will be pattern matched inside a case statement and code
 -- that depends on the TType will be go there.
 data SomeTType where

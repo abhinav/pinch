@@ -3,6 +3,16 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TypeOperators       #-}
+-- |
+-- Module      :  Pinch.Internal.Value
+-- Copyright   :  (c) Abhinav Gupta 2015
+-- License     :  BSD3
+--
+-- Maintainer  :  Abhinav Gupta <mail@abhinavg.net>
+-- Stability   :  experimental
+--
+-- This module defines an intermediate representation for Thrift values and
+-- functions to work with the intermediate representation.
 module Pinch.Internal.Value
     ( Value(..)
     , SomeValue(..)
@@ -26,7 +36,14 @@ import qualified Data.Vector         as V
 import Pinch.Internal.TType
 
 
--- | Over-the-wire representation of Thrift data types.
+-- | @Value@ maps directly to serialized representation of Thrift types. It
+-- contains about as much information as what gets sent over the wire.
+-- @Value@ objects are tagged with different 'TType' values to indicate the
+-- type of the value.
+--
+-- Typical usage will not involve accessing the constructors for this type.
+-- 'Pinch.Pinchable.Pinchable' must be used to construct 'Value' objects or
+-- convert them back to original types.
 data Value a where
     VBool   :: { vbool   ::       !Bool } -> Value TBool
     VByte   :: { vbyte   ::      !Word8 } -> Value TByte
@@ -62,7 +79,10 @@ instance Eq (Value a) where
     _ == _ = False
 
 
--- | Container that holds any value, regardless of type.
+-- | 'SomeValue' holds any value, regardless of type. This may be used when
+-- the type of the value is not necessarily known at compile time. Typically,
+-- this will be pattern matched on and code that depends on the value's
+-- 'TType' will go inside the scope of the match.
 data SomeValue where
     SomeValue :: (IsTType a) => !(Value a) -> SomeValue
   deriving Typeable
@@ -73,7 +93,7 @@ instance Eq SomeValue where
     SomeValue a == SomeValue b = areEqual a b
 
 
--- | Safely cast 'SomeValue' into a 'Value'.
+-- | Safely attempt to cast 'SomeValue' into a 'Value'.
 castValue :: Typeable a => SomeValue -> Maybe (Value a)
 castValue (SomeValue v) = doCast v
   where
@@ -84,6 +104,8 @@ castValue (SomeValue v) = doCast v
         Nothing -> Nothing
         Just (Refl :: a :~: b) -> Just x
 
+
+-- | Get the 'TType' of a 'Value'.
 valueTType :: IsTType a => Value a -> TType a
 valueTType _ = ttype
 

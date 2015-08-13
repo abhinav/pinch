@@ -1,5 +1,14 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+-- |
+-- Module      :  Pinch.Protocol.Binary
+-- Copyright   :  (c) Abhinav Gupta 2015
+-- License     :  BSD3
+--
+-- Maintainer  :  Abhinav Gupta <mail@abhinavg.net>
+-- Stability   :  experimental
+--
+-- Implements the Thrift Binary Protocol as a 'Protocol'.
 module Pinch.Protocol.Binary (binaryProtocol) where
 
 import Control.Monad
@@ -28,6 +37,8 @@ import Pinch.Protocol         (Protocol (..))
 
 import qualified Pinch.Internal.Parser as P
 
+
+-- | Provides an implementation of the Thrift Binary Protocol.
 binaryProtocol :: Protocol
 binaryProtocol = Protocol
     { serializeValue     = binarySerialize

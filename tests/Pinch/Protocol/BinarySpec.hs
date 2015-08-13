@@ -16,7 +16,7 @@ import qualified Pinch.Internal.TType as T
 import qualified Pinch.Internal.Value as V
 
 
-serialize :: V.Value a -> ByteString
+serialize :: T.IsTType a => V.Value a -> ByteString
 serialize = toStrict . BB.toLazyByteString . serializeValue binaryProtocol
 
 

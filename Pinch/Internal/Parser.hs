@@ -1,6 +1,17 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Rank2Types            #-}
+-- |
+-- Module      :  Pinch.Internal.Parser
+-- Copyright   :  (c) Abhinav Gupta 2015
+-- License     :  BSD3
+--
+-- Maintainer  :  Abhinav Gupta <mail@abhinavg.net>
+-- Stability   :  experimental
+--
+-- Implements a basic parser for binary data. The parser does not do any extra
+-- book-keeping besides keeping track of the current position in the
+-- ByteString.
 module Pinch.Internal.Parser
     ( Parser
     , runParser
@@ -30,8 +41,11 @@ import qualified Data.ByteString        as B
 import qualified Data.ByteString.Unsafe as BU
 
 
+-- | Failure continuation. Called with the failure message.
 type Failure   r = String          -> r
 type Success a r = ByteString -> a -> r
+-- ^ Success continuation. Called with the remaining bytestring and the
+-- result.
 
 -- | A simple ByteString parser.
 newtype Parser a = Parser
@@ -69,6 +83,8 @@ instance Monad Parser where
         $ \b1 a -> unParser (k a) b1 kFail kSucc
 
 
+-- | Run the parser on the given ByteString. Return either the failure message
+-- or the result.
 runParser :: Parser a -> ByteString -> Either String a
 runParser (Parser f) b = f b Left (const Right)
 {-# INLINE runParser #-}
@@ -146,8 +162,8 @@ double = do
 {-# INLINE double #-}
 
 
--- As per: http://stackoverflow.com/a/7002812
 cast :: (A.MArray (A.STUArray s) a (ST s),
          A.MArray (A.STUArray s) b (ST s)) => a -> ST s b
+-- As per: http://stackoverflow.com/a/7002812
 cast x = A.newArray (0 :: Int, 0) x >>= A.castSTUArray >>= flip A.readArray 0
 {-# INLINE cast #-}

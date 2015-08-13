@@ -4,21 +4,53 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
+-- |
+-- Module      :  Pinch.Pinchable
+-- Copyright   :  (c) Abhinav Gupta 2015
+-- License     :  BSD3
+--
+-- Maintainer  :  Abhinav Gupta <mail@abhinavg.net>
+-- Stability   :  experimental
+--
+-- Types that can be serialized into Thrift payloads implement the 'Pinchable'
+-- typeclass.
+--
 module Pinch.Pinchable
-    ( Pinchable(..)
+    (
 
     -- * Writing instances
 
-    -- ** @pinch@
+    -- | Instances of 'Pinchable' will usually be constructed by composing
+    -- together existing instances and using the '.=', '.:', etc. helpers.
+
+    -- ** Structs and exceptions
+    -- $struct
+
+    -- ** Unions
+    -- $union
+
+    -- ** Enums
+    -- $enum
+
+    -- * Pinchable
+
+      Pinchable(..)
+
+    -- ** Helpers
+
+    -- *** @pinch@
 
     , (.=)
+    , (?=)
     , struct
     , FieldPair
 
-    -- ** @unpinch@
+    -- *** @unpinch@
 
     , (.:)
     , (.:?)
+
+
     ) where
 
 
@@ -45,21 +77,30 @@ import qualified Data.Vector         as V
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 
+-- TODO helper to pinch/unpinch enums
+-- TODO helper to pinch/unpinch unions
 
--- | Typeclass implemented by types that can be sent over the wire by Thrift.
-class IsTType (PType a) => Pinchable a where
-    -- | 'TType' tag for the type.
-    type PType a :: *
+-- | The Pinchable type class is implemented by types that can be sent over
+-- the wire as Thrift payloads.
+class IsTType (Tag a) => Pinchable a where
+    -- | 'TType' tag for this type. For most custom types, this will most
+    -- likely be 'TStruct'. For enums, it will be 'TInt32'.
+    type Tag a :: *
 
-    -- | Convert @a@ into a 'Value'.
-    pinch :: a -> Value (PType a)
+    -- | Convert an @a@ into a 'Value'.
+    --
+    -- For structs, 'struct', '.=', and '?=' may be used to construct
+    -- 'Value' objects tagged with 'TStruct'.
+    pinch :: a -> Value (Tag a)
 
-    -- | Read a 'Value' back from @a@.
-    unpinch :: Value (PType a) -> Either String a
+    -- | Read a 'Value' back into an @a@.
+    --
+    -- For structs, '.:' and '.:?' may be used to retrieve field values.
+    unpinch :: Value (Tag a) -> Either String a
 
 
 instance IsTType a => Pinchable (Value a) where
-    type PType (Value a) = a
+    type Tag (Value a) = a
     pinch = id
     unpinch = Right
 
@@ -70,18 +111,16 @@ checkedUnpinch
     => Value b -> Either String a
 checkedUnpinch = case eqT of
     Nothing -> const $ Left "Type mismatch"
-    Just (Refl :: PType a :~: b) -> unpinch
+    Just (Refl :: Tag a :~: b) -> unpinch
 
 
 -- | Helper to 'pinch' maps.
 pinchMap
-    :: forall k v ktype vtype kval vval m.
+    :: forall k v kval vval m.
         ( Pinchable k
         , Pinchable v
-        , ktype ~ PType k
-        , vtype ~ PType v
-        , kval ~ Value ktype
-        , vval ~ Value vtype
+        , kval ~ Value (Tag k)
+        , vval ~ Value (Tag v)
         )
     => ((k -> v -> HashMap kval vval -> HashMap kval vval)
            -> HashMap kval vval -> m -> HashMap kval vval)
@@ -94,47 +133,47 @@ pinchMap folder = VMap . folder go HM.empty
 
 
 instance Pinchable ByteString where
-    type PType ByteString = TBinary
+    type Tag ByteString = TBinary
     pinch = VBinary
     unpinch = Right . vbinary
 
 instance Pinchable Text where
-    type PType Text = TBinary
+    type Tag Text = TBinary
     pinch = VBinary . TE.encodeUtf8
     unpinch = Right . TE.decodeUtf8 . vbinary
 
 instance Pinchable Bool where
-    type PType Bool = TBool
+    type Tag Bool = TBool
     pinch = VBool
     unpinch = Right . vbool
 
 instance Pinchable Word8 where
-    type PType Word8 = TByte
+    type Tag Word8 = TByte
     pinch = VByte
     unpinch = Right . vbyte
 
 instance Pinchable Double where
-    type PType Double = TDouble
+    type Tag Double = TDouble
     pinch = VDouble
     unpinch = Right . vdouble
 
 instance Pinchable Int16 where
-    type PType Int16 = TInt16
+    type Tag Int16 = TInt16
     pinch = VInt16
     unpinch = Right . vint16
 
 instance Pinchable Int32 where
-    type PType Int32 = TInt32
+    type Tag Int32 = TInt32
     pinch = VInt32
     unpinch = Right . vint32
 
 instance Pinchable Int64 where
-    type PType Int64 = TInt64
+    type Tag Int64 = TInt64
     pinch = VInt64
     unpinch = Right . vint64
 
 instance Pinchable a => Pinchable (Vector a) where
-    type PType (Vector a) = TList
+    type Tag (Vector a) = TList
 
     pinch = VList . V.map pinch
 
@@ -142,7 +181,7 @@ instance Pinchable a => Pinchable (Vector a) where
     unpinch x = Left $ "Failed to read list. Got " ++ show x
 
 instance Pinchable a => Pinchable [a] where
-    type PType [a] = TList
+    type Tag [a] = TList
 
     pinch = VList . V.fromList . map pinch
 
@@ -155,7 +194,7 @@ instance
   , Pinchable k
   , Pinchable v
   ) => Pinchable (HM.HashMap k v) where
-    type PType (HM.HashMap k v) = TMap
+    type Tag (HM.HashMap k v) = TMap
 
     pinch = pinchMap HM.foldrWithKey
 
@@ -165,7 +204,7 @@ instance
     unpinch x = Left $ "Failed to read map. Got " ++ show x
 
 instance (Ord k, Pinchable k, Pinchable v) => Pinchable (M.Map k v) where
-    type PType (M.Map k v) = TMap
+    type Tag (M.Map k v) = TMap
 
     pinch = pinchMap M.foldrWithKey
 
@@ -175,7 +214,7 @@ instance (Ord k, Pinchable k, Pinchable v) => Pinchable (M.Map k v) where
     unpinch x = Left $ "Failed to read map. Got " ++ show x
 
 instance (Eq a, Hashable a, Pinchable a) => Pinchable (HS.HashSet a) where
-    type PType (HS.HashSet a) = TSet
+    type Tag (HS.HashSet a) = TSet
 
     pinch = VSet . HS.map pinch
 
@@ -184,7 +223,7 @@ instance (Eq a, Hashable a, Pinchable a) => Pinchable (HS.HashSet a) where
     unpinch x = Left $ "Failed to read set. Got " ++ show x
 
 instance (Ord a, Pinchable a) => Pinchable (S.Set a) where
-    type PType (S.Set a) = TSet
+    type Tag (S.Set a) = TSet
 
     pinch = VSet . S.foldr (HS.insert . pinch) HS.empty
 
@@ -194,24 +233,38 @@ instance (Ord a, Pinchable a) => Pinchable (S.Set a) where
 
 ------------------------------------------------------------------------------
 
--- | A pair of field identifier and value stored in the field.
-type FieldPair = (Int16, SomeValue)
+-- | A pair of field identifier and maybe a value stored in the field. If the
+-- value is absent, the field will be ignored.
+type FieldPair = (Int16, Maybe SomeValue)
 
--- | Construct a 'FieldPair' from a field identifier and a pinchable value.
+-- | Construct a 'FieldPair' from a field identifier and a 'Pinchable' value.
 (.=) :: Pinchable a => Int16 -> a -> FieldPair
-fid .= value = (fid, SomeValue (pinch value))
+fid .= value = (fid, Just $ SomeValue (pinch value))
 
--- | Construct a struct value from the given key-value pairs.
+-- | Construct a 'FieldPair' from a field identifier and an optional
+-- 'Pinchable' value.
+(?=) :: Pinchable a => Int16 -> Maybe a -> FieldPair
+fid ?= value = (fid, SomeValue . pinch <$> value)
+
+-- | Construct a 'Value' tagged with a 'TStruct' from the given key-value
+-- pairs. Optional fields whose values were omitted will be ignored.
 struct :: [FieldPair] -> Value TStruct
-struct = VStruct . HM.fromList
+struct = VStruct . foldr go HM.empty
+  where
+    go (_, Nothing) m = m
+    go (k, Just v) m = HM.insert k v m
 
+
+-- | Given a field ID and a @Value TStruct@, get the value stored in the
+-- struct under that field ID. The lookup fails if the field is absent or if
+-- it's not the same type as expected by this call's context.
 (.:) :: forall a. Pinchable a => Value TStruct -> Int16 -> Either String a
 (VStruct items) .: fieldId = do
     someValue <- note ("Field " ++ show fieldId ++ " is absent.")
                $ fieldId `HM.lookup` items
-    (value :: Value (PType a)) <-
+    (value :: Value (Tag a)) <-
         note ("Field " ++ show fieldId ++ " has the incorrect type. " ++
-              "Expected '" ++ show (ttype :: TType (PType a)) ++ "' but " ++
+              "Expected '" ++ show (ttype :: TType (Tag a)) ++ "' but " ++
               "got '" ++ showSomeValueTType someValue ++ "'")
           $ castValue someValue
     unpinch value
@@ -221,6 +274,10 @@ struct = VStruct . HM.fromList
         Nothing -> Left msg
         Just v -> Right v
 
+-- | Given a field ID and a @Value TStruct@, get the optional value stored in
+-- the struct under the given field ID. The value returned is @Nothing@ if it
+-- was absent or the wrong type. The lookup fails only if the value retrieved
+-- fails to 'unpinch'.
 (.:?) :: forall a. Pinchable a
       => Value TStruct -> Int16 -> Either String (Maybe a)
 (VStruct items) .:? fieldId =
@@ -228,5 +285,83 @@ struct = VStruct . HM.fromList
         Nothing -> return Nothing
         Just v  -> Just <$> unpinch v
   where
-    value :: Maybe (Value (PType a))
+    value :: Maybe (Value (Tag a))
     value = fieldId `HM.lookup` items >>= castValue
+
+
+-- $struct
+--
+-- Given a Thrift struct,
+--
+-- > struct Post {
+-- >   1: optional string subject
+-- >   2: required string body
+-- > }
+--
+-- And a corresponding Haskell data type, the 'Pinchable' instance for it will
+-- be,
+--
+-- @
+-- instance 'Pinchable' Post where
+--     type 'Tag' Post = 'TStruct'
+--
+--     pinch (Post subject body) =
+--         'struct' [ 1 '?=' subject
+--                , 2 '.=' body
+--                ]
+--
+--     unpinch value =
+--         Post \<$\> value '.:?' 1
+--              \<*\> value '.:'  2
+-- @
+--
+
+-- $union
+--
+-- Given a Thrift union,
+--
+-- > union PostBody {
+-- >   1: string markdown
+-- >   2: binary rtf
+-- > }
+--
+-- And a corresponding Haskell data type, the 'Pinchable' instance for it will
+-- be,
+--
+-- > instance Pinchable PostBody where
+-- >     type Tag PostBody = TStruct
+-- >
+-- >     pinch (PostBodyMarkdown markdownBody) = struct [1 .= markdownBody]
+-- >     pinch (PostBodyRtf rtfBody) = struct [2 .= rtfBody]
+-- >
+-- >     unpinch v = PostBodyMarkdown <$> v .: 1
+-- >             <|> PostBodyRtf      <$> v .: 2
+
+-- $enum
+--
+-- For an enum,
+--
+-- > enum Role {
+-- >   DISABLED = 0,
+-- >   USER,
+-- >   ADMIN,
+-- > }
+--
+-- And a corresponding Haskell data type, the 'Pinchable' instance for it will
+-- be,
+--
+-- > instance Pinchable Role where
+-- >     type Tag Role = TInt32
+-- >
+-- >     pinch RoleDisabled = pinch 0
+-- >     pinch RoleUser     = pinch 1
+-- >     pinch RoleAdmin    = pinch 2
+-- >
+-- >     unpinch v = do
+-- >        value <- unpinch v
+-- >        case (value :: Int32) of
+-- >            0 -> Right RoleDisabled
+-- >            1 -> Right RoleUser
+-- >            2 -> Right RoleAdmin
+-- >            _ -> Left $ "Unknown role: " ++ show value
+--
