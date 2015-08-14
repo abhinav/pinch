@@ -16,13 +16,6 @@ module Pinch.Internal.TType
     (
     -- * TType
 
-    -- | TType is used to refer to the protocol-level Thrift type of a value.
-    --
-    -- For most basic types, it's just that type: @bool@, @byte@, etc. For
-    -- @string@ and @binary@, it's always @binary@; Thrift doesn't
-    -- differentiate between text and binary at the protocol level. Enums use
-    -- @i32@, and all structs, exceptions, and unions use @struct@.
-
       TType(..)
     , IsTType(..)
     , SomeTType(..)
@@ -45,38 +38,45 @@ module Pinch.Internal.TType
 import Data.Hashable (Hashable (..))
 import Data.Typeable (Typeable)
 
--- | @bool@
+-- | > bool
 data TBool   deriving (Typeable)
 
--- | @byte@
+-- | > byte
 data TByte   deriving (Typeable)
 
--- | @double@
+-- | > double
 data TDouble deriving (Typeable)
 
--- | @i16@
+-- | > i16
 data TInt16  deriving (Typeable)
 
--- | @i32@
+-- |
+-- > i32
+-- > enum
 data TInt32  deriving (Typeable)
 
--- | @i64@
+-- | > i64
 data TInt64  deriving (Typeable)
 
--- | @binary@ and @string@
+-- |
+-- > binary
+-- > string
 data TBinary deriving (Typeable)
 
--- | @struct@, @union@, and @exception@
+-- |
+-- > struct
+-- > union
+-- > exception
 data TStruct deriving (Typeable)
 
 
--- | @map\<k, v\>@
+-- | > map<k, v>
 data TMap    deriving (Typeable)
 
--- | @set\<x\>@
+-- | > set<x>
 data TSet    deriving (Typeable)
 
--- | @list\<x\>@
+-- | > list<x>
 data TList   deriving (Typeable)
 
 

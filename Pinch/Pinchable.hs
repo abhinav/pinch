@@ -16,41 +16,13 @@
 -- typeclass.
 --
 module Pinch.Pinchable
-    (
-
-    -- * Writing instances
-
-    -- | Instances of 'Pinchable' will usually be constructed by composing
-    -- together existing instances and using the '.=', '.:', etc. helpers.
-
-    -- ** Structs and exceptions
-    -- $struct
-
-    -- ** Unions
-    -- $union
-
-    -- ** Enums
-    -- $enum
-
-    -- * Pinchable
-
-      Pinchable(..)
-
-    -- ** Helpers
-
-    -- *** @pinch@
-
+    ( Pinchable(..)
     , (.=)
     , (?=)
     , struct
     , FieldPair
-
-    -- *** @unpinch@
-
     , (.:)
     , (.:?)
-
-
     ) where
 
 
@@ -80,8 +52,8 @@ import Pinch.Internal.Value
 -- TODO helper to pinch/unpinch enums
 -- TODO helper to pinch/unpinch unions
 
--- | The Pinchable type class is implemented by types that can be sent over
--- the wire as Thrift payloads.
+-- | The Pinchable type class is implemented by types that can be sent or
+-- received over the wire as Thrift payloads.
 class IsTType (Tag a) => Pinchable a where
     -- | 'TType' tag for this type. For most custom types, this will most
     -- likely be 'TStruct'. For enums, it will be 'TInt32'.
@@ -287,81 +259,3 @@ struct = VStruct . foldr go HM.empty
   where
     value :: Maybe (Value (Tag a))
     value = fieldId `HM.lookup` items >>= castValue
-
-
--- $struct
---
--- Given a Thrift struct,
---
--- > struct Post {
--- >   1: optional string subject
--- >   2: required string body
--- > }
---
--- And a corresponding Haskell data type, the 'Pinchable' instance for it will
--- be,
---
--- @
--- instance 'Pinchable' Post where
---     type 'Tag' Post = 'TStruct'
---
---     pinch (Post subject body) =
---         'struct' [ 1 '?=' subject
---                , 2 '.=' body
---                ]
---
---     unpinch value =
---         Post \<$\> value '.:?' 1
---              \<*\> value '.:'  2
--- @
---
-
--- $union
---
--- Given a Thrift union,
---
--- > union PostBody {
--- >   1: string markdown
--- >   2: binary rtf
--- > }
---
--- And a corresponding Haskell data type, the 'Pinchable' instance for it will
--- be,
---
--- > instance Pinchable PostBody where
--- >     type Tag PostBody = TStruct
--- >
--- >     pinch (PostBodyMarkdown markdownBody) = struct [1 .= markdownBody]
--- >     pinch (PostBodyRtf rtfBody) = struct [2 .= rtfBody]
--- >
--- >     unpinch v = PostBodyMarkdown <$> v .: 1
--- >             <|> PostBodyRtf      <$> v .: 2
-
--- $enum
---
--- For an enum,
---
--- > enum Role {
--- >   DISABLED = 0,
--- >   USER,
--- >   ADMIN,
--- > }
---
--- And a corresponding Haskell data type, the 'Pinchable' instance for it will
--- be,
---
--- > instance Pinchable Role where
--- >     type Tag Role = TInt32
--- >
--- >     pinch RoleDisabled = pinch 0
--- >     pinch RoleUser     = pinch 1
--- >     pinch RoleAdmin    = pinch 2
--- >
--- >     unpinch v = do
--- >        value <- unpinch v
--- >        case (value :: Int32) of
--- >            0 -> Right RoleDisabled
--- >            1 -> Right RoleUser
--- >            2 -> Right RoleAdmin
--- >            _ -> Left $ "Unknown role: " ++ show value
---

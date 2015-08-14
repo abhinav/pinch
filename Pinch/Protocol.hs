@@ -7,8 +7,6 @@
 -- Maintainer  :  Abhinav Gupta <mail@abhinavg.net>
 -- Stability   :  experimental
 --
--- Protocols define a specific way to convert values into binary and back.
---
 -- Protocols in Pinch only need to know how to serialize and deserialize
 -- 'Value' objects. Types that want to be serialized into/from Thrift payloads
 -- define how to convert them to/from 'Value' objects via
@@ -21,8 +19,8 @@ import Data.ByteString         (ByteString)
 import Data.ByteString.Builder (Builder)
 
 import Pinch.Internal.Message (Message)
-import Pinch.TType            (IsTType)
-import Pinch.Value            (Value)
+import Pinch.Internal.TType   (IsTType)
+import Pinch.Internal.Value   (Value)
 
 -- | Defines a grouping of functions that together compose a Thrift protocol.
 data Protocol = Protocol
