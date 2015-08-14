@@ -9,9 +9,12 @@
 -- TODO
 module Pinch
     (
+
     -- * Pinchable
 
       Pinchable(..)
+    , encode
+    , decode
 
     -- ** Writing instances
 
@@ -93,12 +96,34 @@ module Pinch
     , TList
     ) where
 
+import Control.Monad
+import Data.ByteString (ByteString)
+import Data.ByteString.Lazy (toStrict)
+
+import qualified Data.ByteString.Builder as BB
+
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Pinchable
 import Pinch.Protocol
 import Pinch.Protocol.Binary
 
+-- | Encode the given 'Pinchable' value using the given 'Protocol'.
+--
+-- >>> unpack $ encode binaryProtocol ["a" :: ByteString, "b"]
+-- [11,0,0,0,2,0,0,0,1,97,0,0,0,1,98]
+--
+encode :: Pinchable a => Protocol -> a -> ByteString
+encode p = toStrict . BB.toLazyByteString . serializeValue p . pinch
+
+-- | Decode a 'Pinchable' value from the using the given 'Protocol'.
+--
+-- >>> let s = pack [11,0,0,0,2,0,0,0,1,97,0,0,0,1,98]
+-- >>> decode binaryProtocol s :: Either String [ByteString]
+-- Right ["a","b"]
+--
+decode :: Pinchable a => Protocol -> ByteString -> Either String a
+decode p = deserializeValue p >=> unpinch
 
 -- $struct
 --
