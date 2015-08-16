@@ -25,7 +25,7 @@ import Data.Hashable       (Hashable (..))
 import Data.HashMap.Strict (HashMap)
 import Data.HashSet        (HashSet)
 import Data.Int            (Int16, Int32, Int64)
-import Data.Typeable       ((:~:) (..), Typeable, eqT)
+import Data.Typeable       ((:~:) (..), Typeable, cast, eqT)
 import Data.Vector         (Vector)
 import Data.Word           (Word8)
 
@@ -95,14 +95,7 @@ instance Eq SomeValue where
 
 -- | Safely attempt to cast 'SomeValue' into a 'Value'.
 castValue :: Typeable a => SomeValue -> Maybe (Value a)
-castValue (SomeValue v) = doCast v
-  where
-    doCast
-        :: forall a b. (Typeable a, Typeable b)
-        => Value b -> Maybe (Value a)
-    doCast x = case eqT of
-        Nothing -> Nothing
-        Just (Refl :: a :~: b) -> Just x
+castValue (SomeValue v) = cast v
 
 
 -- | Get the 'TType' of a 'Value'.

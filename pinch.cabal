@@ -46,6 +46,7 @@ test-suite pinch-spec
   other-modules    : Pinch.Arbitrary
                    , Pinch.Internal.ParserSpec
                    , Pinch.Internal.TTypeSpec
+                   , Pinch.Internal.ValueSpec
                    , Pinch.Protocol.BinarySpec
   build-depends    : base
 
