@@ -106,43 +106,67 @@ pinchMap folder = VMap . folder go HM.empty
 
 instance Pinchable ByteString where
     type Tag ByteString = TBinary
+
     pinch = VBinary
-    unpinch = Right . vbinary
+
+    unpinch (VBinary b) = Right b
+    unpinch x = Left $ "Failed to read binary. Got " ++ show x
 
 instance Pinchable Text where
     type Tag Text = TBinary
+
     pinch = VBinary . TE.encodeUtf8
-    unpinch = Right . TE.decodeUtf8 . vbinary
+
+    unpinch (VBinary b) = Right . TE.decodeUtf8 $ b
+    unpinch x = Left $ "Failed to read text. Got " ++ show x
 
 instance Pinchable Bool where
     type Tag Bool = TBool
+
     pinch = VBool
-    unpinch = Right . vbool
+
+    unpinch (VBool x) = Right x
+    unpinch x = Left $ "Failed to read bool. Got " ++ show x
 
 instance Pinchable Word8 where
     type Tag Word8 = TByte
+
     pinch = VByte
-    unpinch = Right . vbyte
+
+    unpinch (VByte x) = Right x
+    unpinch x = Left $ "Failed to read byte. Got " ++ show x
 
 instance Pinchable Double where
     type Tag Double = TDouble
+
     pinch = VDouble
-    unpinch = Right . vdouble
+
+    unpinch (VDouble x) = Right x
+    unpinch x = Left $ "Failed to read double. Got " ++ show x
 
 instance Pinchable Int16 where
     type Tag Int16 = TInt16
+
     pinch = VInt16
-    unpinch = Right . vint16
+
+    unpinch (VInt16 x) = Right x
+    unpinch x = Left $ "Failed to read i16. Got " ++ show x
 
 instance Pinchable Int32 where
     type Tag Int32 = TInt32
+
     pinch = VInt32
-    unpinch = Right . vint32
+
+    unpinch (VInt32 x) = Right x
+    unpinch x = Left $ "Failed to read i32. Got " ++ show x
 
 instance Pinchable Int64 where
     type Tag Int64 = TInt64
+
     pinch = VInt64
-    unpinch = Right . vint64
+
+    unpinch (VInt64 x) = Right x
+    unpinch x = Left $ "Failed to read i64. Got " ++ show x
 
 instance Pinchable a => Pinchable (Vector a) where
     type Tag (Vector a) = TList

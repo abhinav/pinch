@@ -45,14 +45,14 @@ import Pinch.Internal.TType
 -- 'Pinch.Pinchable.Pinchable' must be used to construct 'Value' objects or
 -- convert them back to original types.
 data Value a where
-    VBool   :: { vbool   ::       !Bool } -> Value TBool
-    VByte   :: { vbyte   ::      !Word8 } -> Value TByte
-    VDouble :: { vdouble ::     !Double } -> Value TDouble
-    VInt16  :: { vint16  ::      !Int16 } -> Value TInt16
-    VInt32  :: { vint32  ::      !Int32 } -> Value TInt32
-    VInt64  :: { vint64  ::      !Int64 } -> Value TInt64
-    VBinary :: { vbinary :: !ByteString } -> Value TBinary
-    VStruct :: { vstruct :: !(HashMap Int16 SomeValue) } -> Value TStruct
+    VBool   :: !Bool                      -> Value TBool
+    VByte   :: !Word8                     -> Value TByte
+    VDouble :: !Double                    -> Value TDouble
+    VInt16  :: !Int16                     -> Value TInt16
+    VInt32  :: !Int32                     -> Value TInt32
+    VInt64  :: !Int64                     -> Value TInt64
+    VBinary :: !ByteString                -> Value TBinary
+    VStruct :: !(HashMap Int16 SomeValue) -> Value TStruct
 
     VMap  :: forall k v. (IsTType k, IsTType v)
           => !(HashMap (Value k) (Value v)) -> Value TMap

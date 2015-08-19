@@ -62,10 +62,11 @@ binaryDeserializeMessage
 binaryDeserializeMessage = runParser binaryMessageParser
 
 binaryMessageParser :: IsTType a => Parser (Message a)
-binaryMessageParser =
-    Message
-        <$> (TE.decodeUtf8 . vbinary <$> parseBinary)
-        <*> parseMessageType
+binaryMessageParser = do
+    name <- parseBinary >>= \n -> case n of
+        VBinary x -> return $ TE.decodeUtf8 x
+    Message name
+        <$> parseMessageType
         <*> P.int32
         <*> binaryParser ttype
 
