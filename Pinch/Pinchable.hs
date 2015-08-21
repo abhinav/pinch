@@ -33,11 +33,10 @@ import Control.Applicative
 import Data.ByteString     (ByteString)
 import Data.Hashable       (Hashable)
 import Data.HashMap.Strict (HashMap)
-import Data.Int            (Int16, Int32, Int64)
+import Data.Int            (Int16, Int32, Int64, Int8)
 import Data.Text           (Text)
 import Data.Typeable       ((:~:) (..), Typeable, eqT)
 import Data.Vector         (Vector)
-import Data.Word           (Word8)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet        as HS
@@ -128,8 +127,8 @@ instance Pinchable Bool where
     unpinch (VBool x) = Right x
     unpinch x = Left $ "Failed to read bool. Got " ++ show x
 
-instance Pinchable Word8 where
-    type Tag Word8 = TByte
+instance Pinchable Int8 where
+    type Tag Int8 = TByte
 
     pinch = VByte
 

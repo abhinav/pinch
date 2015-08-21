@@ -17,10 +17,9 @@ import Data.ByteString         (ByteString)
 import Data.ByteString.Builder (Builder)
 import Data.HashMap.Strict     (HashMap)
 import Data.HashSet            (HashSet)
-import Data.Int                (Int16)
+import Data.Int                (Int16, Int8)
 import Data.Monoid
 import Data.Vector             (Vector)
-import Data.Word               (Word8)
 
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Builder as BB
@@ -52,7 +51,7 @@ binaryProtocol = Protocol
 binarySerializeMessage :: Message a -> Builder
 binarySerializeMessage msg = mconcat
     [ binarySerialize . VBinary . TE.encodeUtf8 $ messageName msg
-    , BB.word8 $ messageCode (messageType msg)
+    , BB.int8 $ messageCode (messageType msg)
     , BB.int32BE (messageId msg)
     , binarySerialize (messageBody msg)
     ]
@@ -71,7 +70,7 @@ binaryMessageParser = do
         <*> binaryParser ttype
 
 parseMessageType :: Parser MessageType
-parseMessageType = P.word8 >>= \code -> case fromMessageCode code of
+parseMessageType = P.int8 >>= \code -> case fromMessageCode code of
     Nothing -> fail $ "Unknown message type: " ++ show code
     Just t -> return t
 
@@ -94,18 +93,18 @@ binaryParser typ = case typ of
   TSet    -> parseSet
   TList   -> parseList
 
-getTType :: Word8 -> Parser SomeTType
+getTType :: Int8 -> Parser SomeTType
 getTType code =
     maybe (fail $ "Unknown TType: " ++ show code) return $ fromTypeCode code
 
 parseTType :: Parser SomeTType
-parseTType = P.word8 >>= getTType
+parseTType = P.int8 >>= getTType
 
 parseBool :: Parser (Value TBool)
-parseBool = VBool . (== 1) <$> P.word8
+parseBool = VBool . (== 1) <$> P.int8
 
 parseByte :: Parser (Value TByte)
-parseByte = VByte <$> P.word8
+parseByte = VByte <$> P.int8
 
 parseDouble :: Parser (Value TDouble)
 parseDouble = VDouble <$> P.double
@@ -159,9 +158,9 @@ parseList = do
 
 
 parseStruct :: Parser (Value TStruct)
-parseStruct = P.word8 >>= loop M.empty
+parseStruct = P.int8 >>= loop M.empty
   where
-    loop :: HashMap Int16 SomeValue -> Word8 -> Parser (Value TStruct)
+    loop :: HashMap Int16 SomeValue -> Int8 -> Parser (Value TStruct)
     loop fields    0 = return $ VStruct fields
     loop fields code = do
         vtype' <- getTType code
@@ -169,7 +168,7 @@ parseStruct = P.word8 >>= loop M.empty
         case vtype' of
           SomeTType vtype -> do
             value <- SomeValue <$> binaryParser vtype
-            loop (M.insert fieldId value fields) =<< P.word8
+            loop (M.insert fieldId value fields) =<< P.int8
 
 
 ------------------------------------------------------------------------------
@@ -177,8 +176,8 @@ parseStruct = P.word8 >>= loop M.empty
 binarySerialize :: Value a -> Builder
 binarySerialize v0 = case v0 of
   VBinary  x -> BB.int32BE (fromIntegral $ B.length x) <> BB.byteString x
-  VBool    x -> BB.word8 $ if x then 1 else 0
-  VByte    x -> BB.word8    x
+  VBool    x -> BB.int8 $ if x then 1 else 0
+  VByte    x -> BB.int8     x
   VDouble  x -> BB.doubleBE x
   VInt16   x -> BB.int16BE  x
   VInt32   x -> BB.int32BE  x
@@ -191,14 +190,14 @@ binarySerialize v0 = case v0 of
 
 serializeStruct :: HashMap Int16 SomeValue -> Builder
 serializeStruct fields =
-    mconcat (map go (M.toList fields)) <> BB.word8 0
+    mconcat (map go (M.toList fields)) <> BB.int8 0
   where
     go (fieldId, SomeValue fieldValue) =
         writeField fieldId ttype fieldValue
 
     writeField :: Int16 -> TType a -> Value a -> Builder
     writeField fieldId fieldType fieldValue = mconcat
-        [ BB.word8 $ toTypeCode fieldType
+        [ BB.int8 $ toTypeCode fieldType
         , BB.int16BE fieldId
         , binarySerialize fieldValue
         ]
@@ -206,7 +205,7 @@ serializeStruct fields =
 
 serializeList :: TType a -> Vector (Value a) -> Builder
 serializeList vtype xs = mconcat
-    [ BB.word8   $ toTypeCode vtype
+    [ BB.int8   $ toTypeCode vtype
     , BB.int32BE $ fromIntegral (V.length xs)
     , mconcat    $ map binarySerialize (V.toList xs)
     ]
@@ -214,8 +213,8 @@ serializeList vtype xs = mconcat
 
 serializeMap :: TType k -> TType v -> HashMap (Value k) (Value v) -> Builder
 serializeMap kt vt xs = mconcat
-    [ BB.word8   $ toTypeCode kt
-    , BB.word8   $ toTypeCode vt
+    [ BB.int8   $ toTypeCode kt
+    , BB.int8   $ toTypeCode vt
     , BB.int32BE $ fromIntegral (M.size xs)
     , mconcat    $
         map (\(k, v) -> binarySerialize k <> binarySerialize v) (M.toList xs)
@@ -224,7 +223,7 @@ serializeMap kt vt xs = mconcat
 
 serializeSet :: TType a -> HashSet (Value a) -> Builder
 serializeSet vtype xs = mconcat
-    [ BB.word8   $ toTypeCode vtype
+    [ BB.int8   $ toTypeCode vtype
     , BB.int32BE $ fromIntegral (S.size xs)
     , mconcat    $ map binarySerialize (S.toList xs)
     ]
@@ -233,14 +232,14 @@ serializeSet vtype xs = mconcat
 ------------------------------------------------------------------------------
 
 
-messageCode :: MessageType -> Word8
+messageCode :: MessageType -> Int8
 messageCode CallMessage      = 1
 messageCode ReplyMessage     = 2
 messageCode ExceptionMessage = 3
 messageCode OnewayMessage    = 4
 
 
-fromMessageCode :: Word8 -> Maybe MessageType
+fromMessageCode :: Int8 -> Maybe MessageType
 fromMessageCode 1 = Just CallMessage
 fromMessageCode 2 = Just ReplyMessage
 fromMessageCode 3 = Just ExceptionMessage
@@ -249,7 +248,7 @@ fromMessageCode _ = Nothing
 
 
 -- | Map a TType to its type code.
-toTypeCode :: TType a -> Word8
+toTypeCode :: TType a -> Int8
 toTypeCode TBool   = 2
 toTypeCode TByte   = 3
 toTypeCode TDouble = 4
@@ -264,7 +263,7 @@ toTypeCode TList   = 15
 
 
 -- | Map a type code to the corresponding TType.
-fromTypeCode :: Word8 -> Maybe SomeTType
+fromTypeCode :: Int8 -> Maybe SomeTType
 fromTypeCode 2  = Just $ SomeTType TBool
 fromTypeCode 3  = Just $ SomeTType TByte
 fromTypeCode 4  = Just $ SomeTType TDouble

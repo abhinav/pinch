@@ -16,7 +16,7 @@ module Pinch.Internal.Parser
     ( Parser
     , runParser
 
-    , word8
+    , int8
     , int16
     , int32
     , int64
@@ -30,8 +30,7 @@ import Control.Monad
 import Control.Monad.ST (ST)
 import Data.Bits        (shiftL, (.|.))
 import Data.ByteString  (ByteString)
-import Data.Int         (Int16, Int32, Int64)
-import Data.Word        (Word8)
+import Data.Int         (Int16, Int32, Int64, Int8)
 import Prelude          hiding (take)
 
 import qualified Control.Monad.ST       as ST
@@ -105,12 +104,12 @@ take n = Parser $ \b kFail kSucc ->
 
 
 -- | Produces the next byte and advances the parser.
-word8 :: Parser Word8
-word8 = Parser
+int8 :: Parser Int8
+int8 = Parser
     $ \b0 kFail kSucc -> case B.uncons b0 of
         Nothing -> kFail "Unexpected end of input."
-        Just (w, b1) -> kSucc b1 w
-{-# INLINE word8 #-}
+        Just (w, b1) -> kSucc b1 (fromIntegral w)
+{-# INLINE int8 #-}
 
 
 -- | Produces a signed 16-bit integer and advances the parser.

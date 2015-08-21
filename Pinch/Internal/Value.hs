@@ -24,10 +24,9 @@ import Data.ByteString     (ByteString)
 import Data.Hashable       (Hashable (..))
 import Data.HashMap.Strict (HashMap)
 import Data.HashSet        (HashSet)
-import Data.Int            (Int16, Int32, Int64)
+import Data.Int            (Int16, Int32, Int64, Int8)
 import Data.Typeable       ((:~:) (..), Typeable, cast, eqT)
 import Data.Vector         (Vector)
-import Data.Word           (Word8)
 
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet        as S
@@ -46,7 +45,7 @@ import Pinch.Internal.TType
 -- convert them back to original types.
 data Value a where
     VBool   :: !Bool                      -> Value TBool
-    VByte   :: !Word8                     -> Value TByte
+    VByte   :: !Int8                      -> Value TByte
     VDouble :: !Double                    -> Value TDouble
     VInt16  :: !Int16                     -> Value TInt16
     VInt32  :: !Int32                     -> Value TInt32
