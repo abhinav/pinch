@@ -16,10 +16,33 @@ module Pinch
     , encode
     , decode
 
-    -- ** Writing instances
+    -- ** Automatically deriving instances
 
-    -- | Instances of 'Pinchable' will usually be constructed by composing
-    -- together existing instances and using the '.=', '.:', etc. helpers.
+    -- | Pinch supports deriving instances of 'Pinchable' automatically for
+    -- types that implement the @Generic@ typeclass provided that they follow
+    -- the outlined patterns in their constructors.
+
+    -- *** Structs and exceptions
+    -- $genericStruct
+
+    -- *** Unions
+    -- $genericUnion
+
+    , Field(..)
+    , getField
+    , putField
+    , field
+
+    -- *** Enums
+    -- $genericEnum
+
+    , Enumeration
+    , enum
+
+    -- ** Manually writing instances
+
+    -- | Instances of 'Pinchable' can be constructed by composing together
+    -- existing instances and using the '.=', '.:', etc. helpers.
 
     -- *** Structs and exceptions
     -- $struct
@@ -97,11 +120,12 @@ module Pinch
     ) where
 
 import Control.Monad
-import Data.ByteString (ByteString)
+import Data.ByteString      (ByteString)
 import Data.ByteString.Lazy (toStrict)
 
 import qualified Data.ByteString.Builder as BB
 
+import Pinch.Generic
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Pinchable
@@ -134,13 +158,16 @@ decode p = deserializeValue p >=> unpinch
 -- >   2: required string body
 -- > }
 --
--- And a corresponding Haskell data type, the 'Pinchable' instance for it will
--- be,
+-- The 'Pinchable' instance for it will be,
 --
 -- @
--- instance 'Pinchable' Post where
---     type 'Tag' Post = 'TStruct'
+-- data Post = Post
+--     { postSubject :: Maybe Text
+--     , postBody    :: Text
+--     }
 --
+-- instance 'Pinchable' Post where
+--     type Tag Post = TStruct
 --     pinch (Post subject body) =
 --         'struct' [ 1 '?=' subject
 --                , 2 '.=' body
@@ -161,9 +188,12 @@ decode p = deserializeValue p >=> unpinch
 -- >   2: binary rtf
 -- > }
 --
--- And a corresponding Haskell data type, the 'Pinchable' instance for it will
--- be,
+-- The 'Pinchable' instance for it will be,
 --
+-- > data PostBody
+-- >     = PostBodyMarkdown Text
+-- >     | PostBodyRtf ByteString
+-- >
 -- > instance Pinchable PostBody where
 -- >     type Tag PostBody = TStruct
 -- >
@@ -175,7 +205,7 @@ decode p = deserializeValue p >=> unpinch
 
 -- $enum
 --
--- For an enum,
+-- Given an enum,
 --
 -- > enum Role {
 -- >   DISABLED = 0,
@@ -183,9 +213,10 @@ decode p = deserializeValue p >=> unpinch
 -- >   ADMIN,
 -- > }
 --
--- And a corresponding Haskell data type, the 'Pinchable' instance for it will
--- be,
+-- The 'Pinchable' instance for it will be,
 --
+-- > data Role = RoleDisabled | RoleUser | RoleAdmin
+-- >
 -- > instance Pinchable Role where
 -- >     type Tag Role = TInt32
 -- >
@@ -200,4 +231,78 @@ decode p = deserializeValue p >=> unpinch
 -- >            1 -> Right RoleUser
 -- >            2 -> Right RoleAdmin
 -- >            _ -> Left $ "Unknown role: " ++ show value
+
+-- $genericStruct
 --
+-- Given the struct,
+--
+-- > struct User {
+-- >   1: required string name
+-- >   2: optional string emailAddress
+-- > }
+--
+-- A @Pinchable@ instance for it can be automatically derived by wrapping
+-- fields of the data type with the 'Field' type and specifying the field
+-- identifier as a type-level number. Fields which hold a @Maybe@ value are
+-- considered optional.
+--
+-- @
+-- data User = User
+--     { userName         :: 'Field' 1 Text
+--     , userEmailAddress :: Field 2 (Maybe Text)
+--     }
+--   deriving (Generic)
+--
+-- instance Pinchable User
+-- @
+--
+-- (The @DeriveGeneric@ extension is required to automatically derive
+-- instances of the @Generic@ typeclass.)
+
+-- $genericUnion
+--
+-- As with structs and exceptions, fields of the data type representing a
+-- union must be tagged with 'Field', but to satisfy the property of a union
+-- that only one value is set at a time, they must be on separate
+-- constructors.
+--
+-- For example, given the union,
+--
+-- > union Item {
+-- >   1: binary bin
+-- >   2: string str
+-- >   3: i32    int
+-- > }
+--
+-- A @Pinchable@ instance can be derived like so,
+--
+-- > data Item
+-- >     = ItemBin (Field 1 ByteString)
+-- >     | ItemStr (Field 2 Text)
+-- >     | ItemInt (Field 3 Int32)
+-- >   deriving (Generic)
+-- >
+-- > instance Pinchable Item
+
+-- $genericEnum
+--
+-- Given the enum,
+--
+-- > enum Op {
+-- >   Add, Sub, Mul, Div
+-- > }
+--
+-- A @Pinchable@ instance can be derived for it by creating one constructor
+-- for each of the enum values and providing it a single 'Enumeration'
+-- argument tagged with the enum value.
+--
+-- @
+-- data Op
+--     = OpAdd ('Enumeration' 0)
+--     | OpSub (Enumeration 1)
+--     | OpMul (Enumeration 2)
+--     | OpDiv (Enumeration 3)
+--   deriving (Generic)
+--
+-- instance Pinchable Op
+-- @

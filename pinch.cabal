@@ -17,8 +17,10 @@ source-repository head
 
 
 library
-  exposed-modules  : Pinch.Internal.Message
+  exposed-modules  : Pinch.Generic
+                   , Pinch.Internal.Message
                    , Pinch.Internal.Parser
+                   , Pinch.Internal.Pinchable
                    , Pinch.Internal.TType
                    , Pinch.Internal.Value
                    , Pinch.Pinchable

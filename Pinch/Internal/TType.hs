@@ -27,9 +27,13 @@ module Pinch.Internal.TType
     , TDouble
     , TInt16
     , TInt32
+    , TEnum
     , TInt64
     , TBinary
+    , TText
     , TStruct
+    , TUnion
+    , TException
     , TMap
     , TSet
     , TList
@@ -50,25 +54,29 @@ data TDouble deriving (Typeable)
 -- | > i16
 data TInt16  deriving (Typeable)
 
--- |
--- > i32
--- > enum
+-- | > i32
 data TInt32  deriving (Typeable)
+
+-- | > enum
+type TEnum = TInt32
 
 -- | > i64
 data TInt64  deriving (Typeable)
 
--- |
--- > binary
--- > string
+-- | > binary
 data TBinary deriving (Typeable)
 
--- |
--- > struct
--- > union
--- > exception
+-- | > string
+type TText = TBinary
+
+-- | > struct
 data TStruct deriving (Typeable)
 
+-- | > union
+type TUnion = TStruct
+
+-- | > exception
+type TException = TStruct
 
 -- | > map<k, v>
 data TMap    deriving (Typeable)
