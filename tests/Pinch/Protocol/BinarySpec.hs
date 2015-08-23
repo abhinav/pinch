@@ -1,6 +1,7 @@
-{-# LANGUAGE NegativeLiterals  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NegativeLiterals    #-}
+{-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Pinch.Protocol.BinarySpec (spec) where
 
 import Data.ByteString       (ByteString)
@@ -13,9 +14,11 @@ import Test.QuickCheck
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Builder as BB
 import qualified Data.HashMap.Strict     as HM
+import qualified Data.HashSet            as HS
+import qualified Data.Vector             as V
 
 import Pinch.Arbitrary       ()
-import Pinch.Internal.TType  (IsTType)
+import Pinch.Internal.TType
 import Pinch.Internal.Value  (SomeValue (..), Value (..))
 import Pinch.Protocol        (Protocol (..))
 import Pinch.Protocol.Binary (binaryProtocol)
@@ -29,13 +32,41 @@ deserialize :: IsTType a => ByteString -> Either String (Value a)
 deserialize = deserializeValue binaryProtocol
 
 
--- | Verifies that for each given pair, verifies that parsing the byte array
--- yields the value, and that serializing the value yields the byte array.
+-- | For each given pair, verifies that parsing the byte array yields the
+-- value, and that serializing the value yields the byte array.
 readWriteCases :: IsTType a => [([Word8], Value a)] -> Expectation
 readWriteCases = mapM_ . uncurry $ \bytes value -> do
     let bs = B.pack bytes
     deserialize bs  `shouldBe` Right value
     serialize value `shouldBe` bs
+
+
+-- | For each pair, verifies that if the given TType is parsed, the request
+-- fails to parse because the type ID was invalid.
+invalidTypeIDCases :: [(SomeTType, [Word8])] -> Expectation
+invalidTypeIDCases = mapM_ . uncurry $ \(SomeTType t) v -> go t v
+  where
+    go :: forall a. IsTType a => TType a -> [Word8] -> Expectation
+    go _ bytes =
+        case deserialize (B.pack bytes) :: Either String (Value a) of
+            Right v -> expectationFailure $
+              "Expected " ++ show bytes ++ " to fail to parse. " ++
+              "Got: " ++ show v
+            Left msg -> msg `shouldContain` "Unknown TType"
+
+
+-- | For each pair, verifies that if the given TType is parsed, the request
+-- fails to parse because the input was too short.
+tooShortCases :: [(SomeTType, [Word8])] -> Expectation
+tooShortCases = mapM_ . uncurry $ \(SomeTType t) v -> go t v
+  where
+    go :: forall a. IsTType a => TType a -> [Word8] -> Expectation
+    go _ bytes =
+        case deserialize (B.pack bytes) :: Either String (Value a) of
+            Right v -> expectationFailure $
+              "Expected " ++ show bytes ++ " to fail to parse. " ++
+              "Got: " ++ show v
+            Left msg -> msg `shouldContain` "Input is too short"
 
 
 spec :: Spec
@@ -52,7 +83,7 @@ spec = describe "BinaryProtocol" $ do
     it "can read and write binary" $ readWriteCases
         [ ([ 0x00, 0x00, 0x00, 0x00 ], VBinary "")
         , ([ 0x00, 0x00, 0x00, 0x05        -- length = 5
-           , 0x68, 0x65, 0x6c, 0x6c, 0x6f  -- 'h', 'e', 'l', 'l', 'o'
+           , 0x68, 0x65, 0x6c, 0x6c, 0x6f  -- hello
            ], VBinary "hello")
         ]
 
@@ -65,25 +96,101 @@ spec = describe "BinaryProtocol" $ do
            , 0x00                    -- stop
            ], VStruct (HM.singleton 1 (SomeValue $ VInt32 42)))
 
-        , ([ 0x03       -- ttype = byte
-           , 0x00, 0x01 -- field ID = 1
-           , 0x80       -- -128
-
-           , 0x0F       -- ttype = list
+        , ([ 0x0F       -- ttype = list
            , 0x00, 0x02 -- field ID = 2
 
            , 0x0B                    -- ttype binary
            , 0x00, 0x00, 0x00, 0x02  -- size = 2
 
            , 0x00, 0x00, 0x00, 0x03  -- length = 3
-           , 0x66, 0x6f, 0x6f        -- 'f', 'o', 'o'
+           , 0x66, 0x6f, 0x6f        -- foo
 
            , 0x00, 0x00, 0x00, 0x03  -- length = 3
-           , 0x62, 0x61, 0x72        -- 'b', 'a', 'r'
+           , 0x62, 0x61, 0x72        -- bar
 
            , 0x00
            ], VStruct
-           [ (1, SomeValue $ VByte (-128))
-           , (2, SomeValue $ VList [VBinary "foo", VBinary "bar"])
+           [ (2, SomeValue $ VList [VBinary "foo", VBinary "bar"])
            ])
+        ]
+
+    it "can read and write maps" $ readWriteCases
+        [ ([ 0x02, 0x03              -- ktype = bool, vtype = byte
+           , 0x00, 0x00, 0x00, 0x00  -- count = 0
+           ], VMap (HM.empty :: HM.HashMap (Value TBool) (Value TByte)))
+        , ([ 0x0B, 0x0F              -- ktype = binary, vtype = list
+           , 0x00, 0x00, 0x00, 0x01  -- count = 1
+
+           -- "world"
+           , 0x00, 0x00, 0x00, 0x05        -- length = 5
+           , 0x77, 0x6f, 0x72, 0x6c, 0x64  -- world
+
+           -- [1, 2, 3]
+           , 0x03                          -- type = byte
+           , 0x00, 0x00, 0x00, 0x03        -- count = 3
+           , 0x01, 0x02, 0x03              -- 1, 2, 3
+           ], VMap
+           [ (VBinary "world", VList [VByte 1, VByte 2, VByte 3])
+           ])
+        ]
+
+    it "can read and write sets" $ readWriteCases
+        [ ([0x02, 0x00, 0x00, 0x00, 0x00
+           ], VSet (HS.empty :: HS.HashSet (Value TBool)))
+        , ([ 0x02
+           , 0x00, 0x00, 0x00, 0x01
+           , 0x01
+           ], VSet [VBool True])
+        ]
+
+    it "can read and write lists" $ readWriteCases
+        [ ([0x02, 0x00, 0x00, 0x00, 0x00
+           ], VList (V.empty :: V.Vector (Value TBool)))
+        , ([ 0x02
+           , 0x00, 0x00, 0x00, 0x05
+           , 0x01, 0x00, 0x00, 0x01, 0x01
+           ], VList
+               [ VBool True
+               , VBool False
+               , VBool False
+               , VBool True
+               , VBool True
+               ])
+        ]
+
+    it "fails if the input is too short" $ tooShortCases
+        [ (SomeTType TBool, [])
+        , (SomeTType TByte, [])
+        , (SomeTType TInt16, [0x01])
+        , (SomeTType TInt32, [0x01, 0x02, 0x03])
+        , (SomeTType TInt64, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07])
+        , (SomeTType TDouble, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07])
+        , (SomeTType TBinary, [0x00, 0x00, 0x00])
+        , (SomeTType TBinary, [0x00, 0x00, 0x00, 0x01])
+        , (SomeTType TBinary, [0x00, 0x00, 0x00, 0x02, 0x01])
+
+        , (SomeTType TMap, [0x02])
+        , (SomeTType TMap, [0x02, 0x03])
+        , (SomeTType TMap, [0x02, 0x03, 0x00, 0x00, 0x00])
+        , (SomeTType TMap, [0x02, 0x03, 0x00, 0x00, 0x00, 0x01])
+        , (SomeTType TMap, [0x02, 0x03, 0x00, 0x00, 0x00, 0x01, 0x01])
+        , (SomeTType TMap,
+           [0x02, 0x03, 0x00, 0x00, 0x00, 0x02, 0x01, 0x01, 0x01])
+
+        , (SomeTType TSet, [0x02])
+        , (SomeTType TSet, [0x02, 0x00, 0x00, 0x00])
+        , (SomeTType TSet, [0x02, 0x00, 0x00, 0x00, 0x01])
+        , (SomeTType TSet, [0x02, 0x00, 0x00, 0x00, 0x02, 0x01])
+
+        , (SomeTType TList, [0x02])
+        , (SomeTType TList, [0x02, 0x00, 0x00, 0x00])
+        , (SomeTType TList, [0x02, 0x00, 0x00, 0x00, 0x01])
+        , (SomeTType TList, [0x02, 0x00, 0x00, 0x00, 0x02, 0x01])
+        ]
+
+    it "denies invalid type IDs" $ invalidTypeIDCases
+        [ (SomeTType TStruct, [0x01, 0x00, 0x01])
+        , (SomeTType TMap, [0x05, 0x07, 0x00, 0x00, 0x00, 0x00])
+        , (SomeTType TSet, [0x09, 0x00, 0x00, 0x00, 0x00])
+        , (SomeTType TList, [0x10, 0x00, 0x00, 0x00, 0x00])
         ]

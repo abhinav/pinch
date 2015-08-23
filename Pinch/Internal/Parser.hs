@@ -94,9 +94,9 @@ take :: Int -> Parser ByteString
 take n = Parser $ \b kFail kSucc ->
     let l = B.length b
     in if l >= n
-        then let requested = BU.unsafeDrop n b
-                 remaining = BU.unsafeTake n b
-             in kSucc requested remaining
+        then let remaining = BU.unsafeDrop n b
+                 requested = BU.unsafeTake n b
+             in kSucc remaining requested
         else kFail
               ("Input is too short. Expected " ++ show n ++ " bytes. " ++
                "Got " ++ show l ++ " bytes.")
@@ -107,7 +107,7 @@ take n = Parser $ \b kFail kSucc ->
 int8 :: Parser Int8
 int8 = Parser
     $ \b0 kFail kSucc -> case B.uncons b0 of
-        Nothing -> kFail "Unexpected end of input."
+        Nothing -> kFail "Input is too short. Expected 1 bytes. Got 0 bytes."
         Just (w, b1) -> kSucc b1 (fromIntegral w)
 {-# INLINE int8 #-}
 
