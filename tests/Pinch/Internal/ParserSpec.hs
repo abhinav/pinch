@@ -1,5 +1,5 @@
+{-# LANGUAGE NegativeLiterals  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NegativeLiterals #-}
 module Pinch.Internal.ParserSpec (spec) where
 
 import Data.Either           (isLeft)
@@ -36,7 +36,7 @@ spec = describe "Parser" $ do
         (P.runParser (fail "great sadness") "" :: Either String ())
             `shouldBe` Left "great sadness"
 
-    it "can parse 8-bit integers." $
+    it "can parse 8-bit integers" $
         parseCases P.int8
             [ ([0x01], 1)
             , ([0x05], 5)
@@ -45,7 +45,7 @@ spec = describe "Parser" $ do
             , ([0x80], -128)
             ]
 
-    it "can parse 16-bit integers." $
+    it "can parse 16-bit integers" $
         parseCases P.int16
             [ ([0x00, 0x01], 1)
             , ([0x00, 0xff], 255)
@@ -59,7 +59,7 @@ spec = describe "Parser" $ do
             , ([0x80, 0x00], -32768)
             ]
 
-    it "can parse 32-bit integers." $
+    it "can parse 32-bit integers" $
         parseCases P.int32
             [ ([0x00, 0x00, 0x00, 0x01], 1)
             , ([0x00, 0x00, 0x00, 0xff], 255)
@@ -73,7 +73,7 @@ spec = describe "Parser" $ do
             , ([0x80, 0x00, 0x00, 0x00], -2147483648)
             ]
 
-    it "can parse 64-bit integers." $
+    it "can parse 64-bit integers" $
         parseCases P.int64
             [ ([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01], 1)
             , ([0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff], 4294967295)
@@ -89,7 +89,16 @@ spec = describe "Parser" $ do
             , ([0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], -9223372036854775808)
             ]
 
-    -- TODO similar test cases for double
+    it "can parse doubles" $
+        parseCases P.double
+            [ ([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 0.0)
+            , ([0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 1.0)
+            , ([0x3f, 0xf0, 0x00, 0x00, 0x00, 0x06, 0xdf, 0x38], 1.0000000001)
+            , ([0x3f, 0xf1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9a], 1.1)
+            , ([0xbf, 0xf1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9a], -1.1)
+            , ([0x40, 0x09, 0x21, 0xfb, 0x54, 0x44, 0x2d, 0x18], 3.141592653589793)
+            , ([0xbf, 0xf0, 0x00, 0x00, 0x00, 0x06, 0xdf, 0x38], -1.0000000001)
+            ]
 
     describe "take" $ do
 

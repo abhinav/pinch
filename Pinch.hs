@@ -147,9 +147,9 @@ import qualified Data.ByteString.Builder as BB
 
 import Pinch.Generic
 import Pinch.Internal.Message
+import Pinch.Internal.Pinchable
 import Pinch.Internal.TType
 import Pinch.Internal.Value
-import Pinch.Internal.Pinchable
 import Pinch.Protocol
 import Pinch.Protocol.Binary
 
