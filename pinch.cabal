@@ -45,11 +45,13 @@ test-suite pinch-spec
   ghc-options      : -Wall
   main-is          : Spec.hs
   other-modules    : Pinch.Arbitrary
+                   , Pinch.GenericSpec
                    , Pinch.Internal.ParserSpec
                    , Pinch.Internal.PinchableSpec
                    , Pinch.Internal.TTypeSpec
                    , Pinch.Internal.ValueSpec
                    , Pinch.Protocol.BinarySpec
+                   , Pinch.TestUtils
   build-depends    : base
 
                    , bytestring

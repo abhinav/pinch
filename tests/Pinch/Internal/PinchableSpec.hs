@@ -20,17 +20,11 @@ import qualified Data.ByteString as B
 
 import Pinch.Arbitrary
 import Pinch.Internal.Pinchable ((.:), (.:?), (.=), (?=))
+import Pinch.TestUtils
 
 import qualified Pinch.Internal.Pinchable as P
 import qualified Pinch.Internal.TType     as T
 import qualified Pinch.Internal.Value     as V
-
--- | Expectation
-leftShouldContain :: Show a => Either String a -> String -> Expectation
-leftShouldContain (Right a) _ =
-    expectationFailure $ "Expected failure but got: " ++ show a
-leftShouldContain (Left msg) x = msg `shouldContain` x
-infix 1 `leftShouldContain`
 
 
 data AnEnum = EnumA | EnumB | EnumC
