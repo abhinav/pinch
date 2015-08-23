@@ -46,15 +46,18 @@ test-suite pinch-spec
   main-is          : Spec.hs
   other-modules    : Pinch.Arbitrary
                    , Pinch.Internal.ParserSpec
+                   , Pinch.Internal.PinchableSpec
                    , Pinch.Internal.TTypeSpec
                    , Pinch.Internal.ValueSpec
                    , Pinch.Protocol.BinarySpec
   build-depends    : base
 
                    , bytestring
+                   , containers
                    , hspec                >= 2.0
                    , hspec-discover       >= 2.1
                    , QuickCheck           >= 2.5
+                   , text
                    , unordered-containers
                    , vector
 

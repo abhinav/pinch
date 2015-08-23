@@ -211,18 +211,22 @@ decode p = deserializeValue p >=> unpinch
 --
 -- The 'Pinchable' instance for it will be,
 --
--- > data PostBody
--- >     = PostBodyMarkdown Text
--- >     | PostBodyRtf ByteString
--- >
--- > instance Pinchable PostBody where
--- >     type Tag PostBody = TStruct
--- >
--- >     pinch (PostBodyMarkdown markdownBody) = struct [1 .= markdownBody]
--- >     pinch (PostBodyRtf rtfBody) = struct [2 .= rtfBody]
--- >
--- >     unpinch v = PostBodyMarkdown <$> v .: 1
--- >             <|> PostBodyRtf      <$> v .: 2
+-- @
+-- data PostBody
+--     = PostBodyMarkdown Text
+--     | PostBodyRtf ByteString
+--
+-- instance Pinchable PostBody where
+--     type Tag PostBody = 'TUnion'
+--
+--     pinch (PostBodyMarkdown markdownBody) =
+--         'union' 1 markdownBody
+--     pinch (PostBodyRtf rtfBody) =
+--         union 2 rtfBody
+--
+--     unpinch v = PostBodyMarkdown <$> v .: 1
+--             <|> PostBodyRtf      <$> v .: 2
+-- @
 
 -- $enum
 --
@@ -239,11 +243,11 @@ decode p = deserializeValue p >=> unpinch
 -- > data Role = RoleDisabled | RoleUser | RoleAdmin
 -- >
 -- > instance Pinchable Role where
--- >     type Tag Role = TInt32
+-- >     type Tag Role = TEnum
 -- >
--- >     pinch RoleDisabled = pinch 0
--- >     pinch RoleUser     = pinch 1
--- >     pinch RoleAdmin    = pinch 2
+-- >     pinch RoleDisabled = pinch (0 :: Int32)
+-- >     pinch RoleUser     = pinch (1 :: Int32)
+-- >     pinch RoleAdmin    = pinch (2 :: Int32)
 -- >
 -- >     unpinch v = do
 -- >        value <- unpinch v
