@@ -24,11 +24,11 @@ import Pinch.Internal.Value (Value)
 -- | Type of message being sent.
 data MessageType
     = CallMessage
-    -- ^ Call to a specific method.
+    -- ^ A new call to a specific method.
     | ReplyMessage
-    -- ^ Response of a call.
+    -- ^ Response to a call.
     | ExceptionMessage
-    -- ^ Failed response of a call.
+    -- ^ Failed response to a call.
     | OnewayMessage
     -- ^ One-way call that expects no response.
   deriving (Show, Eq, Data, Typeable)

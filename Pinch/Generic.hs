@@ -29,7 +29,7 @@ module Pinch.Generic
     , putField
     , field
 
-    , Enumeration
+    , Enumeration(..)
     , enum
     ) where
 
@@ -46,6 +46,7 @@ import Pinch.Internal.TType
 import Pinch.Internal.Value     (Value (..))
 
 
+-- | Implemented by TType tags whose values know how to combine.
 class Combinable t where
     combine :: Value t -> Value t -> Value t
 
@@ -58,6 +59,8 @@ instance {-# OVERLAPPABLE #-} GPinchable a => GPinchable (M1 i c a) where
     gPinch = gPinch . unM1
     gUnpinch = fmap M1 . gUnpinch
 
+
+-- Adds the name of the data type to the error message.
 instance (Datatype d, GPinchable a) => GPinchable (D1 d a) where
     type GTag (D1 d a) = GTag a
     gPinch = gPinch . unM1
@@ -90,27 +93,39 @@ instance
 ------------------------------------------------------------------------------
 
 -- | Fields of data types that represent structs, unions, and exceptions
--- should be warpped inside 'Field' and tagged with the field identifier.
+-- should be wrapped inside 'Field' and tagged with the field identifier.
 --
--- > data Foo = Bar (Field 1 Text) (Field 2 (Maybe Int32)) deriving Generic
+-- > data Foo = Foo (Field 1 Text) (Field 2 (Maybe Int32)) deriving Generic
+-- > instance Pinchable Foo
 --
--- Fields which hold @Maybe@ values are treated as optional. All fields must
--- be 'PInchable' to automatically derive a @Pinchable@ instance for the new
--- data type.
+-- > data A = A (Field 1 Int32) | B (Field 2 Text) deriving Generic
+-- > instance Pinchable Foo
+--
+-- Fields which hold @Maybe@ values are treated as optional. All fields values
+-- must be 'Pinchable' to automatically derive a @Pinchable@ instance for the
+-- new data type.
 newtype Field (n :: Nat) a = Field a
   deriving
     (Bounded, Eq, Enum, Foldable, Functor, Monoid, Ord, Show, Traversable,
      Typeable)
 
 -- | Gets the current value of a field.
+--
+-- > let Foo a' _ = {- ... -}
+-- >     a = getField a'
 getField :: Field n a -> a
 getField (Field a) = a
 
 -- | Puts a value inside a field.
+--
+-- > Foo (putField "Hello") (putField (Just 42))
 putField :: a -> Field n a
 putField = Field
 
 -- | A lens on @Field@ wrappers for use with the lens library.
+--
+-- > person & name . field .~ "new value"
+--
 field :: Functor f => (a -> f b) -> Field n a -> f (Field n b)
 field f (Field a) = Field <$> f a
 
@@ -140,10 +155,20 @@ instance
 
 ------------------------------------------------------------------------------
 
+-- | Data types that represent Thrift enums must have one constructor for each
+-- enum item accepting an 'Enumeration' object tagged with the corresponding
+-- enum value.
+--
+-- > data Role = RoleUser (Enumeration 1) | RoleAdmin (Enumeration 2)
+-- >   deriving Generic
+-- > instance Pinchable Role
 data Enumeration (n :: Nat) = Enumeration
   deriving
     (Eq, Ord, Show, Typeable)
 
+-- | Convenience function to construct 'Enumeration' objects.
+--
+-- > let role = RoleUser enum
 enum :: Enumeration n
 enum = Enumeration
 

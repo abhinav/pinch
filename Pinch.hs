@@ -6,26 +6,37 @@
 -- Maintainer  :  Abhinav Gupta <mail@abhinavg.net>
 -- Stability   :  experimental
 --
--- TODO
+-- Pinch defines the machinery to specify how types can be encoded into or
+-- decoded from Thrift values. Types that can be serialized and deserialized
+-- into/from Thrift values implement the 'Pinchable' typeclass. The
+-- 'Pinchable' typeclass converts objects into and from 'Value' objects, which
+-- map directly to the over-the-wire representation of Thrift values.
+-- A 'Protocol' is responsible for converting 'Value' objects to and from
+-- raw bytestrings.
+--
+-- > +------------+   Pinchable   +------------+   Protocol    +------------+
+-- > |            |               |            |               |            |
+-- > |            +----pinch------>            +---serialize--->            |
+-- > | Your Type  |               |  Value a   |               | ByteString |
+-- > |            <---unpinch-----+            <--deserialize--+            |
+-- > |            |               |            |               |            |
+-- > +------------+               +------------+               +------------+
 module Pinch
     (
 
-    -- * Pinchable
-
-      Pinchable(..)
-    , encode
+      encode
     , decode
 
-    -- ** Automatically deriving instances
+    -- * Automatically derived instances
 
     -- | Pinch supports deriving instances of 'Pinchable' automatically for
     -- types that implement the @Generic@ typeclass provided that they follow
     -- the outlined patterns in their constructors.
 
-    -- *** Structs and exceptions
+    -- ** Structs and exceptions
     -- $genericStruct
 
-    -- *** Unions
+    -- ** Unions
     -- $genericUnion
 
     , Field(..)
@@ -33,25 +44,29 @@ module Pinch
     , putField
     , field
 
-    -- *** Enums
+    -- ** Enums
     -- $genericEnum
 
-    , Enumeration
+    , Enumeration(..)
     , enum
 
-    -- ** Manually writing instances
+    -- * Manually writing instances
 
     -- | Instances of 'Pinchable' can be constructed by composing together
     -- existing instances and using the '.=', '.:', etc. helpers.
 
-    -- *** Structs and exceptions
+    -- ** Structs and exceptions
     -- $struct
 
-    -- *** Unions
+    -- ** Unions
     -- $union
 
-    -- *** Enums
+    -- ** Enums
     -- $enum
+
+    -- * Pinchable
+
+    , Pinchable(..)
 
     -- ** Helpers
 
@@ -60,6 +75,7 @@ module Pinch
     , (.=)
     , (?=)
     , struct
+    , union
     , FieldPair
 
     -- *** @unpinch@
@@ -75,24 +91,25 @@ module Pinch
     -- and from 'Value' objects via 'Pinchable'.
 
     , Value
+    , SomeValue(..)
+
+    -- * Message
+
+    , Message(..)
+    , MessageType(..)
 
     -- * Protocols
 
     -- | Protocols define a specific way to convert values into binary and
     -- back.
 
-    , Protocol
+    , Protocol(..)
     , binaryProtocol
 
 
     -- * TType
 
     -- | TType is used to refer to the Thrift protocol-level type of a value.
-    --
-    -- For most basic types, it's just that type: 'TBool', 'TByte', etc. For
-    -- @string@ and @binary@, it's always 'TBinary'; Thrift doesn't
-    -- differentiate between text and binary at the protocol level. Enums use
-    -- 'TInt32', and all structs, exceptions, and unions use 'TStruct'.
 
     , TType
     , IsTType(..)
@@ -109,11 +126,14 @@ module Pinch
     , TBool
     , TByte
     , TDouble
+    , TEnum
     , TInt16
     , TInt32
     , TInt64
     , TBinary
     , TStruct
+    , TUnion
+    , TException
     , TMap
     , TSet
     , TList
@@ -126,9 +146,10 @@ import Data.ByteString.Lazy (toStrict)
 import qualified Data.ByteString.Builder as BB
 
 import Pinch.Generic
+import Pinch.Internal.Message
 import Pinch.Internal.TType
 import Pinch.Internal.Value
-import Pinch.Pinchable
+import Pinch.Internal.Pinchable
 import Pinch.Protocol
 import Pinch.Protocol.Binary
 

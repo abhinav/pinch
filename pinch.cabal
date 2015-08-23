@@ -23,7 +23,6 @@ library
                    , Pinch.Internal.Pinchable
                    , Pinch.Internal.TType
                    , Pinch.Internal.Value
-                   , Pinch.Pinchable
                    , Pinch.Protocol
                    , Pinch.Protocol.Binary
                    , Pinch
