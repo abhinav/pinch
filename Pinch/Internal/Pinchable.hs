@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DefaultSignatures   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE FlexibleInstances   #-}
@@ -34,10 +33,6 @@ module Pinch.Internal.Pinchable
     , genericPinch
     , genericUnpinch
     ) where
-
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
 
 import Data.ByteString     (ByteString)
 import Data.Hashable       (Hashable)
