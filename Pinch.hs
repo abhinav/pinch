@@ -6,13 +6,13 @@
 -- Maintainer  :  Abhinav Gupta <mail@abhinavg.net>
 -- Stability   :  experimental
 --
--- Pinch defines the machinery to specify how types can be encoded into or
--- decoded from Thrift values. Types that can be serialized and deserialized
+-- Pinch defines machinery to specify how types can be encoded into or decoded
+-- from Thrift payloads. Types that can be serialized and deserialized
 -- into/from Thrift values implement the 'Pinchable' typeclass. The
 -- 'Pinchable' typeclass converts objects into and from 'Value' objects, which
--- map directly to the over-the-wire representation of Thrift values.
--- A 'Protocol' is responsible for converting 'Value' objects to and from
--- raw bytestrings.
+-- map directly to the over-the-wire representation of Thrift values. A
+-- 'Protocol' is responsible for converting 'Value' objects to and from raw
+-- bytestrings.
 --
 -- > +------------+   Pinchable   +------------+   Protocol    +------------+
 -- > |            |               |            |               |            |
@@ -170,6 +170,94 @@ encode p = toStrict . BB.toLazyByteString . serializeValue p . pinch
 decode :: Pinchable a => Protocol -> ByteString -> Either String a
 decode p = deserializeValue p >=> unpinch
 
+-- $genericStruct
+--
+-- Given the struct,
+--
+-- > struct User {
+-- >   1: required string name
+-- >   2: optional string emailAddress
+-- > }
+--
+-- A @Pinchable@ instance for it can be automatically derived by wrapping
+-- fields of the data type with the 'Field' type and specifying the field
+-- identifier as a type-level numeral. Fields which hold a @Maybe@ value are
+-- considered optional.
+--
+-- @
+-- data User = User
+--     { userName         :: 'Field' 1 Text
+--     , userEmailAddress :: Field 2 (Maybe Text)
+--     }
+--   deriving (Generic)
+--
+-- instance Pinchable User
+-- @
+--
+-- The @DeriveGeneric@ extension is required to automatically derive instances
+-- of the @Generic@ typeclass and the @DataKinds@ extension is required to use
+-- type-level numerals.
+
+-- $genericUnion
+--
+-- As with structs and exceptions, fields of the data type representing a
+-- union must be tagged with 'Field', but to satisfy the property of a union
+-- that only one value is set at a time, they must be on separate
+-- constructors.
+--
+-- For example, given the union,
+--
+-- > union Item {
+-- >   1: binary bin
+-- >   2: string str
+-- >   3: i32    int
+-- > }
+--
+-- A @Pinchable@ instance can be derived like so,
+--
+-- > data Item
+-- >     = ItemBin (Field 1 ByteString)
+-- >     | ItemStr (Field 2 Text)
+-- >     | ItemInt (Field 3 Int32)
+-- >   deriving (Generic)
+-- >
+-- > instance Pinchable Item
+--
+-- The @DeriveGeneric@ extension is required to automatically derive instances
+-- of the @Generic@ typeclass and the @DataKinds@ extension is required to use
+-- type-level numerals.
+
+-- $genericEnum
+--
+-- Given the enum,
+--
+-- > enum Op {
+-- >   Add, Sub, Mul, Div
+-- > }
+--
+-- A @Pinchable@ instance can be derived for it by creating one constructor
+-- for each of the enum values and providing it a single 'Enumeration'
+-- argument tagged with the enum value.
+--
+-- @
+-- data Op
+--     = OpAdd ('Enumeration' 0)
+--     | OpSub (Enumeration 1)
+--     | OpMul (Enumeration 2)
+--     | OpDiv (Enumeration 3)
+--   deriving (Generic)
+--
+-- instance Pinchable Op
+-- @
+--
+-- Note that you need to know the values assigned to the enums. If not
+-- specified, Thrift automatically assigns incrementing values to the items in
+-- the order they appear starting at 0.
+--
+-- The @DeriveGeneric@ extension is required to automatically derive instances
+-- of the @Generic@ typeclass and the @DataKinds@ extension is required to use
+-- type-level numerals.
+
 -- $struct
 --
 -- Given a Thrift struct,
@@ -256,78 +344,3 @@ decode p = deserializeValue p >=> unpinch
 -- >            1 -> Right RoleUser
 -- >            2 -> Right RoleAdmin
 -- >            _ -> Left $ "Unknown role: " ++ show value
-
--- $genericStruct
---
--- Given the struct,
---
--- > struct User {
--- >   1: required string name
--- >   2: optional string emailAddress
--- > }
---
--- A @Pinchable@ instance for it can be automatically derived by wrapping
--- fields of the data type with the 'Field' type and specifying the field
--- identifier as a type-level number. Fields which hold a @Maybe@ value are
--- considered optional.
---
--- @
--- data User = User
---     { userName         :: 'Field' 1 Text
---     , userEmailAddress :: Field 2 (Maybe Text)
---     }
---   deriving (Generic)
---
--- instance Pinchable User
--- @
---
--- (The @DeriveGeneric@ extension is required to automatically derive
--- instances of the @Generic@ typeclass.)
-
--- $genericUnion
---
--- As with structs and exceptions, fields of the data type representing a
--- union must be tagged with 'Field', but to satisfy the property of a union
--- that only one value is set at a time, they must be on separate
--- constructors.
---
--- For example, given the union,
---
--- > union Item {
--- >   1: binary bin
--- >   2: string str
--- >   3: i32    int
--- > }
---
--- A @Pinchable@ instance can be derived like so,
---
--- > data Item
--- >     = ItemBin (Field 1 ByteString)
--- >     | ItemStr (Field 2 Text)
--- >     | ItemInt (Field 3 Int32)
--- >   deriving (Generic)
--- >
--- > instance Pinchable Item
-
--- $genericEnum
---
--- Given the enum,
---
--- > enum Op {
--- >   Add, Sub, Mul, Div
--- > }
---
--- A @Pinchable@ instance can be derived for it by creating one constructor
--- for each of the enum values and providing it a single 'Enumeration'
--- argument tagged with the enum value.
---
--- @
--- data Op
---     = OpAdd ('Enumeration' 0)
---     | OpSub (Enumeration 1)
---     | OpMul (Enumeration 2)
---     | OpDiv (Enumeration 3)
---   deriving (Generic)
---
--- instance Pinchable Op
--- @
