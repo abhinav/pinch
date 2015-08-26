@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
 -- |
 -- Module      :  Pinch.Internal.Message
 -- Copyright   :  (c) Abhinav Gupta 2015
@@ -14,10 +15,12 @@ module Pinch.Internal.Message
     , MessageType(..)
     ) where
 
-import Data.Data     (Data)
-import Data.Int      (Int32)
-import Data.Text     (Text)
-import Data.Typeable (Typeable)
+import Control.DeepSeq (NFData)
+import Data.Data       (Data)
+import Data.Int        (Int32)
+import Data.Text       (Text)
+import Data.Typeable   (Typeable)
+import GHC.Generics    (Generic)
 
 import Pinch.Internal.Value (Value)
 
@@ -31,7 +34,9 @@ data MessageType
     -- ^ Failed response to a call.
     | OnewayMessage
     -- ^ One-way call that expects no response.
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance NFData MessageType
 
 
 -- | Message envelope for Thrift payloads. This is parameterized over the
@@ -47,4 +52,6 @@ data Message a = Message
     , messageBody :: !(Value a)
     -- ^ Contents of the message.
     }
-  deriving (Show, Eq, Typeable)
+  deriving (Show, Eq, Typeable, Generic)
+
+instance NFData (Message a)

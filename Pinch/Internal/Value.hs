@@ -20,6 +20,7 @@ module Pinch.Internal.Value
     , valueTType
     ) where
 
+import Control.DeepSeq     (NFData (..))
 import Data.ByteString     (ByteString)
 import Data.Hashable       (Hashable (..))
 import Data.HashMap.Strict (HashMap)
@@ -77,6 +78,18 @@ instance Eq (Value a) where
 
     _ == _ = False
 
+instance NFData (Value a) where
+    rnf (VBool   a) = rnf a
+    rnf (VByte   a) = rnf a
+    rnf (VDouble a) = rnf a
+    rnf (VInt16  a) = rnf a
+    rnf (VInt32  a) = rnf a
+    rnf (VInt64  a) = rnf a
+    rnf (VBinary a) = rnf a
+    rnf (VStruct a) = rnf a
+    rnf (VMap   as) = rnf as
+    rnf (VSet   as) = rnf as
+    rnf (VList  as) = rnf as
 
 -- | 'SomeValue' holds any value, regardless of type. This may be used when
 -- the type of the value is not necessarily known at compile time. Typically,
@@ -91,6 +104,8 @@ deriving instance Show SomeValue
 instance Eq SomeValue where
     SomeValue a == SomeValue b = areEqual a b
 
+instance NFData SomeValue where
+    rnf (SomeValue a) = rnf a
 
 -- | Safely attempt to cast 'SomeValue' into a 'Value'.
 castValue :: Typeable a => SomeValue -> Maybe (Value a)
