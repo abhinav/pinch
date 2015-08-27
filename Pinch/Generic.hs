@@ -90,12 +90,6 @@ instance
     gPinch (R1 b) = gPinch b
     gUnpinch m = L1 <$> gUnpinch m <|> R1 <$> gUnpinch m
 
-
-instance Pinchable a => GPinchable (K1 i a) where
-    type GTag (K1 i a) = Tag a
-    gPinch (K1 a) = pinch a
-    gUnpinch = fmap K1 . unpinch
-
 ------------------------------------------------------------------------------
 
 -- | Fields of data types that represent structs, unions, and exceptions
@@ -137,28 +131,27 @@ field f (Field a) = Field <$> f a
 
 instance
   {-# OVERLAPPABLE #-} (Pinchable a, KnownNat n)
-  => Pinchable (Field n a) where
-    type Tag (Field n a) = TStruct
-
-    pinch (Field a) = struct [n .= a]
+  => GPinchable (K1 i (Field n a)) where
+    type GTag (K1 i (Field n a)) = TStruct
+    gPinch (K1 (Field a)) = struct [n .= a]
       where
         n = fromIntegral $ natVal (Proxy :: Proxy n)
 
-    unpinch m = Field <$> m .: n
+    gUnpinch m = K1 . Field <$> m .: n
       where
         n = fromIntegral $ natVal (Proxy :: Proxy n)
 
-instance (Pinchable a, KnownNat n) => Pinchable (Field n (Maybe a)) where
-    type Tag (Field n (Maybe a)) = TStruct
-
-    pinch (Field a) = struct [n ?= a]
+instance
+  (Pinchable a, KnownNat n)
+  => GPinchable (K1 i (Field n (Maybe a))) where
+    type GTag (K1 i (Field n (Maybe a))) = TStruct
+    gPinch (K1 (Field a)) = struct [n ?= a]
       where
         n = fromIntegral $ natVal (Proxy :: Proxy n)
 
-    unpinch m = Field <$> m .:? n
+    gUnpinch m = K1 . Field <$> m .:? n
       where
         n = fromIntegral $ natVal (Proxy :: Proxy n)
-
 
 ------------------------------------------------------------------------------
 
@@ -179,14 +172,12 @@ data Enumeration (n :: Nat) = Enumeration
 enum :: Enumeration n
 enum = Enumeration
 
-instance KnownNat n => Pinchable (Enumeration n) where
-    type Tag (Enumeration n) = TEnum
-
-    pinch Enumeration = VInt32 . fromIntegral $ natVal (Proxy :: Proxy n)
-
-    unpinch (VInt32 i)
-        | i == val  = return Enumeration
+instance KnownNat n => GPinchable (K1 i (Enumeration n)) where
+    type GTag (K1 i (Enumeration n)) = TEnum
+    gPinch (K1 Enumeration) = VInt32 . fromIntegral $ natVal (Proxy :: Proxy n)
+    gUnpinch (VInt32 i)
+        | i == val  = return (K1 Enumeration)
         | otherwise = Left $ "Couldn't match enum value " ++ show i
       where
         val = fromIntegral $ natVal (Proxy :: Proxy n)
-    unpinch x = Left $ "Failed to read enum. Got " ++ show x
+    gUnpinch x = Left $ "Failed to read enum. Got " ++ show x
