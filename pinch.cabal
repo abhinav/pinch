@@ -45,12 +45,12 @@ library
                    , Pinch.Protocol.Binary
                    , Pinch
   ghc-options      : -Wall -Werror
-  build-depends    : base                 >= 4.8  && < 4.9
+  build-depends    : base                 >= 4.7  && < 4.9
 
                    , array                >= 0.5
                    , bytestring           >= 0.10 && < 0.11
                    , containers           >= 0.5  && < 0.6
-                   , deepseq              >= 1.4  && < 1.5
+                   , deepseq              >= 1.3  && < 1.5
                    , hashable             >= 1.2  && < 1.3
                    , text                 >= 1.2  && < 1.3
                    , unordered-containers >= 0.2  && < 0.3
@@ -64,13 +64,14 @@ test-suite pinch-spec
   ghc-options      : -Wall -Werror
   main-is          : Spec.hs
   other-modules    : Pinch.Arbitrary
+                   , Pinch.Expectations
                    , Pinch.GenericSpec
+                   , Pinch.Protocol.BinarySpec
                    , Pinch.Internal.ParserSpec
                    , Pinch.Internal.PinchableSpec
                    , Pinch.Internal.TTypeSpec
+                   , Pinch.Internal.Util
                    , Pinch.Internal.ValueSpec
-                   , Pinch.Protocol.BinarySpec
-                   , Pinch.TestUtils
   build-depends    : base
 
                    , bytestring

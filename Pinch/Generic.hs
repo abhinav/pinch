@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveFoldable             #-}
@@ -12,6 +13,13 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
+#if __GLASGOW_HASKELL__ < 709
+{-# LANGUAGE OverlappingInstances       #-}
+#define OVERLAPPABLE
+#else
+#define OVERLAPPABLE {-# OVERLAPPABLE #-}
+#endif
 -- |
 -- Module      :  Pinch.Generic
 -- Copyright   :  (c) Abhinav Gupta 2015
@@ -32,6 +40,13 @@ module Pinch.Generic
     , Enumeration(..)
     , enum
     ) where
+
+
+#if __GLASGOW_HASKELL__ < 709
+import Data.Foldable    (Foldable)
+import Data.Monoid      (Monoid)
+import Data.Traversable (Traversable)
+#endif
 
 import Control.Applicative
 import Data.Proxy          (Proxy (..))
@@ -54,7 +69,7 @@ instance Combinable TStruct where
     combine (VStruct as) (VStruct bs) = VStruct $ as `HM.union` bs
 
 
-instance {-# OVERLAPPABLE #-} GPinchable a => GPinchable (M1 i c a) where
+instance OVERLAPPABLE GPinchable a => GPinchable (M1 i c a) where
     type GTag (M1 i c a) = GTag a
     gPinch = gPinch . unM1
     gUnpinch = fmap M1 . gUnpinch
@@ -129,8 +144,7 @@ putField = Field
 field :: Functor f => (a -> f b) -> Field n a -> f (Field n b)
 field f (Field a) = Field <$> f a
 
-instance
-  {-# OVERLAPPABLE #-} (Pinchable a, KnownNat n)
+instance OVERLAPPABLE (Pinchable a, KnownNat n)
   => GPinchable (K1 i (Field n a)) where
     type GTag (K1 i (Field n a)) = TStruct
     gPinch (K1 (Field a)) = struct [n .= a]

@@ -1,5 +1,4 @@
 {-# LANGUAGE NegativeLiterals    #-}
-{-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Pinch.Protocol.BinarySpec (spec) where
@@ -13,12 +12,10 @@ import Test.QuickCheck
 
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Builder as BB
-import qualified Data.HashMap.Strict     as HM
-import qualified Data.HashSet            as HS
-import qualified Data.Vector             as V
 
 import Pinch.Arbitrary       ()
 import Pinch.Internal.TType
+import Pinch.Internal.Util
 import Pinch.Internal.Value  (SomeValue (..), Value (..))
 import Pinch.Protocol        (Protocol (..))
 import Pinch.Protocol.Binary (binaryProtocol)
@@ -76,25 +73,25 @@ spec = describe "BinaryProtocol" $ do
         deserialize (serialize someVal) === Right someVal
 
     it "can read and write booleans" $ readWriteCases
-        [ ([0x01], VBool True)
-        , ([0x00], VBool False)
+        [ ([0x01], vbool True)
+        , ([0x00], vbool False)
         ]
 
     it "can read and write binary" $ readWriteCases
-        [ ([ 0x00, 0x00, 0x00, 0x00 ], VBinary "")
+        [ ([ 0x00, 0x00, 0x00, 0x00 ], vbin "")
         , ([ 0x00, 0x00, 0x00, 0x05        -- length = 5
            , 0x68, 0x65, 0x6c, 0x6c, 0x6f  -- hello
-           ], VBinary "hello")
+           ], vbin "hello")
         ]
 
     it "can read and write structs" $ readWriteCases
-        [ ([0x00], VStruct HM.empty)
+        [ ([0x00], vstruct [])
 
         , ([ 0x08                    -- ttype = i32
            , 0x00, 0x01              -- field ID = 1
            , 0x00, 0x00, 0x00, 0x2a  -- 42
            , 0x00                    -- stop
-           ], VStruct (HM.singleton 1 (SomeValue $ VInt32 42)))
+           ], vstruct [(1, vi32_ 42)])
 
         , ([ 0x0F       -- ttype = list
            , 0x00, 0x02 -- field ID = 2
@@ -109,15 +106,15 @@ spec = describe "BinaryProtocol" $ do
            , 0x62, 0x61, 0x72        -- bar
 
            , 0x00
-           ], VStruct
-           [ (2, SomeValue $ VList [VBinary "foo", VBinary "bar"])
+           ], vstruct
+           [ (2, vlist_ [vbin "foo", vbin "bar"])
            ])
         ]
 
     it "can read and write maps" $ readWriteCases
         [ ([ 0x02, 0x03              -- ktype = bool, vtype = byte
            , 0x00, 0x00, 0x00, 0x00  -- count = 0
-           ], VMap (HM.empty :: HM.HashMap (Value TBool) (Value TByte)))
+           ], vmap ([] :: [(Value TBool, Value TByte)]))
         , ([ 0x0B, 0x0F              -- ktype = binary, vtype = list
            , 0x00, 0x00, 0x00, 0x01  -- count = 1
 
@@ -129,32 +126,32 @@ spec = describe "BinaryProtocol" $ do
            , 0x03                          -- type = byte
            , 0x00, 0x00, 0x00, 0x03        -- count = 3
            , 0x01, 0x02, 0x03              -- 1, 2, 3
-           ], VMap
-           [ (VBinary "world", VList [VByte 1, VByte 2, VByte 3])
+           ], vmap
+           [ (vbin "world", vlist [vbyt 1, vbyt 2, vbyt 3])
            ])
         ]
 
     it "can read and write sets" $ readWriteCases
         [ ([0x02, 0x00, 0x00, 0x00, 0x00
-           ], VSet (HS.empty :: HS.HashSet (Value TBool)))
+           ], vset ([] :: [Value TBool]))
         , ([ 0x02
            , 0x00, 0x00, 0x00, 0x01
            , 0x01
-           ], VSet [VBool True])
+           ], vset [vbool True])
         ]
 
     it "can read and write lists" $ readWriteCases
         [ ([0x02, 0x00, 0x00, 0x00, 0x00
-           ], VList (V.empty :: V.Vector (Value TBool)))
+           ], vlist ([] :: [Value TBool]))
         , ([ 0x02
            , 0x00, 0x00, 0x00, 0x05
            , 0x01, 0x00, 0x00, 0x01, 0x01
-           ], VList
-               [ VBool True
-               , VBool False
-               , VBool False
-               , VBool True
-               , VBool True
+           ], vlist
+               [ vbool True
+               , vbool False
+               , vbool False
+               , vbool True
+               , vbool True
                ])
         ]
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- |
@@ -11,8 +12,12 @@
 -- Implements the Thrift Binary Protocol as a 'Protocol'.
 module Pinch.Protocol.Binary (binaryProtocol) where
 
-import Control.Monad
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative
+#endif
+
+import Control.Monad
 import Data.ByteString         (ByteString)
 import Data.ByteString.Builder (Builder)
 import Data.HashMap.Strict     (HashMap)

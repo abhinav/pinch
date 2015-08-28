@@ -1,11 +1,13 @@
-{-# LANGUAGE DefaultSignatures   #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE DefaultSignatures    #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE GADTs                #-}
+{-# LANGUAGE KindSignatures       #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
 -- |
 -- Module      :  Pinch.Internal.Pinchable
 -- Copyright   :  (c) Abhinav Gupta 2015
@@ -33,6 +35,10 @@ module Pinch.Internal.Pinchable
     , genericPinch
     , genericUnpinch
     ) where
+
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative
+#endif
 
 import Data.ByteString     (ByteString)
 import Data.Hashable       (Hashable)

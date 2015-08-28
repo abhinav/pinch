@@ -1,4 +1,4 @@
-module Pinch.TestUtils
+module Pinch.Expectations
     ( leftShouldContain
     ) where
 

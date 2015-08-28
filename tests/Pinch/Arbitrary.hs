@@ -1,12 +1,17 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Pinch.Arbitrary
     ( SomeByteString(..)
     ) where
+
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative
+#endif
 
 import Data.ByteString (ByteString)
 import Test.QuickCheck
@@ -18,6 +23,11 @@ import qualified Data.Vector         as V
 
 import qualified Pinch.Internal.TType as T
 import qualified Pinch.Internal.Value as V
+
+#if !MIN_VERSION_QuickCheck(2, 8, 0)
+scale :: (Int -> Int) -> Gen a -> Gen a
+scale f g = sized (\n -> resize (f n) g)
+#endif
 
 halfSize :: Gen a -> Gen a
 halfSize = scale (\n -> truncate (fromIntegral n / 2 :: Double))

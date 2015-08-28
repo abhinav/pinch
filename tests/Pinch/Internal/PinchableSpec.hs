@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 module Pinch.Internal.PinchableSpec (spec) where
@@ -16,11 +15,17 @@ import Data.Vector           (Vector)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 
-import qualified Data.ByteString as B
+import qualified Data.ByteString     as B
+import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet        as HS
+import qualified Data.Map.Strict     as M
+import qualified Data.Set            as S
+import qualified Data.Vector         as Vec
 
 import Pinch.Arbitrary
+import Pinch.Expectations
 import Pinch.Internal.Pinchable ((.:), (.:?), (.=), (?=))
-import Pinch.TestUtils
+import Pinch.Internal.Util
 
 import qualified Pinch.Internal.Pinchable as P
 import qualified Pinch.Internal.TType     as T
@@ -47,16 +52,16 @@ enumSpec :: Spec
 enumSpec = describe "Enum" $ do
 
     it "can pinch and unpinch" $ do
-        P.pinch EnumA `shouldBe` V.VInt32 1
-        P.pinch EnumB `shouldBe` V.VInt32 2
-        P.pinch EnumC `shouldBe` V.VInt32 3
+        P.pinch EnumA `shouldBe` vi32 1
+        P.pinch EnumB `shouldBe` vi32 2
+        P.pinch EnumC `shouldBe` vi32 3
 
-        P.unpinch (V.VInt32 1) `shouldBe` Right EnumA
-        P.unpinch (V.VInt32 2) `shouldBe` Right EnumB
-        P.unpinch (V.VInt32 3) `shouldBe` Right EnumC
+        P.unpinch (vi32 1) `shouldBe` Right EnumA
+        P.unpinch (vi32 2) `shouldBe` Right EnumB
+        P.unpinch (vi32 3) `shouldBe` Right EnumC
 
     it "reject invalid values" $
-        P.unpinch (V.VInt32 4) `shouldBe`
+        P.unpinch (vi32 4) `shouldBe`
             (Left "Unknown enum value" :: Either String AnEnum)
 
 
@@ -83,43 +88,43 @@ unionSpec = describe "Union" $ do
 
     prop "can pinch (1)" $ \dub ->
         P.pinch (UnionDouble dub) `shouldBe`
-            V.VStruct [(1, V.SomeValue $ V.VDouble dub)]
+            vstruct [(1, vdub_ dub)]
 
     prop "can pinch (2)" $ \byt ->
         P.pinch (UnionByte byt) `shouldBe`
-            V.VStruct [(2, V.SomeValue $ V.VByte byt)]
+            vstruct [(2, vbyt_ byt)]
 
     it "can pinch (3)" $
-        P.pinch (UnionSet [EnumA, EnumB]) `shouldBe`
-            V.VStruct [(5, V.SomeValue $ V.VSet [V.VInt32 1, V.VInt32 2])]
+        P.pinch (UnionSet $ S.fromList [EnumA, EnumB]) `shouldBe`
+            vstruct [(5, vset_ [vi32 1, vi32 2])]
 
     it "can unpinch" $ do
-        P.unpinch (V.VStruct [(1, V.SomeValue $ V.VDouble 12.34)])
+        P.unpinch (vstruct [(1, vdub_ 12.34)])
             `shouldBe` Right (UnionDouble 12.34)
 
-        P.unpinch (V.VStruct [(2, V.SomeValue $ V.VByte 123)])
+        P.unpinch (vstruct [(2, vbyt_ 123)])
             `shouldBe` Right (UnionByte 123)
 
         P.unpinch
-            (V.VStruct [(5, V.SomeValue $ V.VSet [V.VInt32 1, V.VInt32 2])])
-            `shouldBe` Right (UnionSet [EnumA, EnumB])
+            (vstruct [(5, vset_ [vi32 1, vi32 2])])
+            `shouldBe` Right (UnionSet $ S.fromList [EnumA, EnumB])
 
     it "reject invalid types" $ do
         (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
-          (V.VStruct [(1, V.SomeValue $ V.VInt32 1)])
+          (vstruct [(1, vi32_ 1)])
             `leftShouldContain` "is absent"
 
         (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
-          (V.VStruct [(2, V.SomeValue $ V.VBool True)])
+          (vstruct [(2, vbool_ True)])
             `leftShouldContain` "is absent"
 
         (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
-          (V.VStruct [(5, V.SomeValue $ V.VList [V.VInt32 1, V.VInt32 2])])
+          (vstruct [(5, vlist_ [vi32 1, vi32 2])])
             `leftShouldContain` "has the incorrect type"
 
     it "reject invalid IDs" $
         (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
-          (V.VStruct [(3, V.SomeValue $ V.VDouble 1.0)])
+          (vstruct [(3, vdub_ 1.0)])
             `leftShouldContain` "is absent"
 
 
@@ -137,48 +142,48 @@ structSpec = describe "Struct" $ do
 
     it "can pinch and unpinch" $ do
         P.pinch (AStruct "foo" Nothing)
-            `shouldBe` V.VStruct [(1, V.SomeValue $ V.VBinary "foo")]
+            `shouldBe` vstruct [(1, vbin_ "foo")]
 
         P.pinch (AStruct "bar" (Just 42))
-            `shouldBe` V.VStruct
-                [ (1, V.SomeValue $ V.VBinary "bar")
-                , (5, V.SomeValue $ V.VInt32 42)
+            `shouldBe` vstruct
+                [ (1, vbin_ "bar")
+                , (5, vi32_ 42)
                 ]
 
-        P.unpinch (V.VStruct [(1, V.SomeValue $ V.VBinary "hello")])
+        P.unpinch (vstruct [(1, vbin_ "hello")])
             `shouldBe` Right (AStruct "hello" Nothing)
 
         P.unpinch
-          (V.VStruct
-            [ (1, V.SomeValue $ V.VBinary "hello")
-            , (5, V.SomeValue $ V.VInt32 42)
+          (vstruct
+            [ (1, vbin_ "hello")
+            , (5, vi32_ 42)
             ]) `shouldBe` Right (AStruct "hello" (Just 42))
 
     it "ignores unrecognized fields" $ do
         P.unpinch
-          (V.VStruct
-            [ (1, V.SomeValue $ V.VBinary "foo")
-            , (2, V.SomeValue $ V.VInt32 42)
+          (vstruct
+            [ (1, vbin_ "foo")
+            , (2, vi32_ 42)
             ]) `shouldBe` Right (AStruct "foo" Nothing)
 
         P.unpinch
-          (V.VStruct
-            [ (1, V.SomeValue $ V.VBinary "foo")
-            , (4, V.SomeValue $ V.VByte 12)
-            , (5, V.SomeValue $ V.VInt32 34)
+          (vstruct
+            [ (1, vbin_ "foo")
+            , (4, vbyt_ 12)
+            , (5, vi32_ 34)
             ]) `shouldBe` Right (AStruct "foo" (Just 34))
 
     it "rejects missing required fields" $
         (P.unpinch :: V.Value T.TStruct -> Either String AStruct)
-          (V.VStruct
-            [ (4, V.SomeValue $ V.VByte 12)
-            , (5, V.SomeValue $ V.VInt32 34)
+          (vstruct
+            [ (4, vbyt_ 12)
+            , (5, vi32_ 34)
             ]) `leftShouldContain` "1 is absent"
 
     it "rejects invalid types" $
         (P.unpinch :: V.Value T.TStruct -> Either String AStruct)
-          (V.VStruct
-            [ (1, V.SomeValue $ V.VList [V.VInt32 42])
+          (vstruct
+            [ (1, vlist_ [vi32 42])
             ]) `leftShouldContain` "has the incorrect type"
 
 
@@ -186,37 +191,37 @@ primitivesSpec :: Spec
 primitivesSpec = do
 
     it "can pinch and unpinch Bools" $ do
-        P.pinch True `shouldBe` V.VBool True
-        P.pinch False `shouldBe` V.VBool False
+        P.pinch True `shouldBe` vbool True
+        P.pinch False `shouldBe` vbool False
 
-        P.unpinch (V.VBool True) `shouldBe` Right True
-        P.unpinch (V.VBool False) `shouldBe` Right False
+        P.unpinch (vbool True) `shouldBe` Right True
+        P.unpinch (vbool False) `shouldBe` Right False
 
     prop "can pinch and unpinch Int8" $ \i -> do
-        P.pinch i `shouldBe` V.VByte i
-        P.unpinch (V.VByte i) `shouldBe` Right i
+        P.pinch i `shouldBe` vbyt i
+        P.unpinch (vbyt i) `shouldBe` Right i
 
     prop "can pinch and unpinch Int32" $ \i -> do
-        P.pinch i `shouldBe` V.VInt32 i
-        P.unpinch (V.VInt32 i) `shouldBe` Right i
+        P.pinch i `shouldBe` vi32 i
+        P.unpinch (vi32 i) `shouldBe` Right i
 
     prop "can pinch and unpinch Int64" $ \i -> do
-        P.pinch i `shouldBe` V.VInt64 i
-        P.unpinch (V.VInt64 i) `shouldBe` Right i
+        P.pinch i `shouldBe` vi64 i
+        P.unpinch (vi64 i) `shouldBe` Right i
 
     prop "can pinch and unpinch Double" $ \d -> do
-        P.pinch d `shouldBe` V.VDouble d
-        P.unpinch (V.VDouble d) `shouldBe` Right d
+        P.pinch d `shouldBe` vdub d
+        P.unpinch (vdub d) `shouldBe` Right d
 
     prop "can pinch and unpinch ByteString" $ \(SomeByteString bs) -> do
-        P.pinch bs `shouldBe` V.VBinary bs
-        P.unpinch (V.VBinary bs) `shouldBe` Right bs
+        P.pinch bs `shouldBe` vbin bs
+        P.unpinch (vbin bs) `shouldBe` Right bs
 
     it "can pinch and unpinch Text" $ do
         P.pinch ("☕️" :: Text)
-            `shouldBe` V.VBinary (B.pack [0xe2, 0x98, 0x95, 0xef, 0xb8, 0x8f])
+            `shouldBe` vbin (B.pack [0xe2, 0x98, 0x95, 0xef, 0xb8, 0x8f])
 
-        P.unpinch (V.VBinary (B.pack [0xe2, 0x98, 0x95, 0xef, 0xb8, 0x8f]))
+        P.unpinch (vbin (B.pack [0xe2, 0x98, 0x95, 0xef, 0xb8, 0x8f]))
             `shouldBe` Right ("☕️" :: Text)
 
 
@@ -226,15 +231,15 @@ containerSpec = do
     describe "Vector" $ do
         it "can pinch and unpinch" $ do
 
-            P.pinch ([1, 2, 3] :: Vector Int32)
-                `shouldBe` V.VList [V.VInt32 1, V.VInt32 2, V.VInt32 3]
+            P.pinch (Vec.fromList [1, 2, 3 :: Int32])
+                `shouldBe` vlist [vi32 1, vi32 2, vi32 3]
 
-            P.unpinch (V.VList [V.VInt32 1, V.VInt32 2, V.VInt32 3])
-                `shouldBe` Right ([1, 2, 3] :: Vector Int32)
+            P.unpinch (vlist [vi32 1, vi32 2, vi32 3])
+                `shouldBe` Right (Vec.fromList [1, 2, 3 :: Int32])
 
         it "rejects type mismatch" $
           (P.unpinch :: V.Value T.TList -> Either String (Vector Int8))
-            (V.VList [V.VInt32 1, V.VInt32 2, V.VInt32 3])
+            (vlist [vi32 1, vi32 2, vi32 3])
                 `leftShouldContain` "Type mismatch"
 
     describe "List" $ do
@@ -242,94 +247,98 @@ containerSpec = do
         it "can pinch and unpinch" $ do
 
             P.pinch ([1, 2, 3] :: [Int32])
-                `shouldBe` V.VList [V.VInt32 1, V.VInt32 2, V.VInt32 3]
+                `shouldBe` vlist [vi32 1, vi32 2, vi32 3]
 
-            P.unpinch (V.VList [V.VInt32 1, V.VInt32 2, V.VInt32 3])
+            P.unpinch (vlist [vi32 1, vi32 2, vi32 3])
                 `shouldBe` Right ([1, 2, 3] :: [Int32])
 
         it "rejects type mismatch" $
           (P.unpinch :: V.Value T.TList -> Either String [Int8])
-            (V.VList [V.VInt32 1, V.VInt32 2, V.VInt32 3])
+            (vlist [vi32 1, vi32 2, vi32 3])
                 `leftShouldContain` "Type mismatch"
 
     describe "HashSet" $ do
         it "can pinch and unpinch" $ do
 
-            P.pinch ([1, 2, 3] :: HashSet Int32)
-                `shouldBe` V.VSet [V.VInt32 1, V.VInt32 2, V.VInt32 3]
+            P.pinch (HS.fromList [1, 2, 3 :: Int32])
+                `shouldBe` vset [vi32 1, vi32 2, vi32 3]
 
-            P.unpinch (V.VSet [V.VInt32 1, V.VInt32 2, V.VInt32 3])
-                `shouldBe` Right ([1, 2, 3] :: HashSet Int32)
+            P.unpinch (vset [vi32 1, vi32 2, vi32 3])
+                `shouldBe` Right (HS.fromList [1, 2, 3 :: Int32])
 
         it "rejects type mismatch" $
           (P.unpinch :: V.Value T.TSet -> Either String (HashSet Int8))
-            (V.VSet [V.VInt32 1, V.VInt32 2, V.VInt32 3])
+            (vset [vi32 1, vi32 2, vi32 3])
                 `leftShouldContain` "Type mismatch"
 
     describe "Set" $ do
         it "can pinch and unpinch" $ do
 
-            P.pinch ([1, 2, 3] :: Set Int32)
-                `shouldBe` V.VSet [V.VInt32 1, V.VInt32 2, V.VInt32 3]
+            P.pinch (S.fromList [1, 2, 3 :: Int32])
+                `shouldBe` vset [vi32 1, vi32 2, vi32 3]
 
-            P.unpinch (V.VSet [V.VInt32 1, V.VInt32 2, V.VInt32 3])
-                `shouldBe` Right ([1, 2, 3] :: Set Int32)
+            P.unpinch (vset [vi32 1, vi32 2, vi32 3])
+                `shouldBe` Right (S.fromList [1, 2, 3 :: Int32])
 
         it "rejects type mismatch" $
           (P.unpinch :: V.Value T.TSet -> Either String (Set Int8))
-            (V.VSet [V.VInt32 1, V.VInt32 2, V.VInt32 3])
+            (vset [vi32 1, vi32 2, vi32 3])
                 `leftShouldContain` "Type mismatch"
 
     describe "HashMap" $ do
 
         it "can pinch and unpinch" $ do
 
-            P.pinch ([("a", 1), ("b", 2)] :: HashMap ByteString Int16)
-                `shouldBe` V.VMap
-                    [ (V.VBinary "a", V.VInt16 1)
-                    , (V.VBinary "b", V.VInt16 2)
+            P.pinch (HM.fromList [("a", 1), ("b", 2) :: (ByteString, Int16)])
+                `shouldBe` vmap
+                    [ (vbin "a", vi16 1)
+                    , (vbin "b", vi16 2)
                     ]
 
             P.unpinch
-              (V.VMap [ (V.VBinary "a", V.VInt16 1)
-                      , (V.VBinary "b", V.VInt16 2)
+              (vmap [ (vbin "a", vi16 1)
+                      , (vbin "b", vi16 2)
                       ]) `shouldBe`
-                        Right ([("a", 1), ("b", 2)] :: HashMap ByteString Int16)
+                        Right
+                          (HM.fromList
+                            [("a", 1), ("b", 2) :: (ByteString, Int16)])
 
         it "rejects key type mismatch" $
           (P.unpinch :: V.Value T.TMap -> Either String (HashMap Int32 Int16))
-              (V.VMap [(V.VBinary "a", V.VInt16 1)])
+              (vmap [(vbin "a", vi16 1)])
                   `leftShouldContain` "Type mismatch"
 
         it "rejects value type mismatch" $
           (P.unpinch :: V.Value T.TMap -> Either String (HashMap ByteString Bool))
-              (V.VMap [(V.VBinary "a", V.VInt16 1)])
+              (vmap [(vbin "a", vi16 1)])
                   `leftShouldContain` "Type mismatch"
 
     describe "Map" $ do
 
         it "can pinch and unpinch" $ do
 
-            P.pinch ([("a", 1), ("b", 2)] :: Map ByteString Int16)
-                `shouldBe` V.VMap
-                    [ (V.VBinary "a", V.VInt16 1)
-                    , (V.VBinary "b", V.VInt16 2)
+            P.pinch (M.fromList [("a", 1), ("b", 2) :: (ByteString, Int16)])
+                `shouldBe` vmap
+                    [ (vbin "a", vi16 1)
+                    , (vbin "b", vi16 2)
                     ]
 
             P.unpinch
-              (V.VMap [ (V.VBinary "a", V.VInt16 1)
-                      , (V.VBinary "b", V.VInt16 2)
+              (vmap [ (vbin "a", vi16 1)
+                      , (vbin "b", vi16 2)
                       ]) `shouldBe`
-                        Right ([("a", 1), ("b", 2)] :: Map ByteString Int16)
+                        Right
+                          (M.fromList
+                            [("a", 1), ("b", 2) :: (ByteString, Int16)])
 
         it "rejects key type mismatch" $
           (P.unpinch :: V.Value T.TMap -> Either String (Map Int32 Int16))
-              (V.VMap [(V.VBinary "a", V.VInt16 1)])
+              (vmap [(vbin "a", vi16 1)])
                   `leftShouldContain` "Type mismatch"
 
         it "rejects value type mismatch" $
           (P.unpinch :: V.Value T.TMap -> Either String (Map ByteString Bool))
-              (V.VMap [(V.VBinary "a", V.VInt16 1)])
+              (vmap [(vbin "a", vi16 1)])
                   `leftShouldContain` "Type mismatch"
 
 

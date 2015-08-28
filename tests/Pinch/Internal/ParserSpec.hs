@@ -1,6 +1,11 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE NegativeLiterals  #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Pinch.Internal.ParserSpec (spec) where
+
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative
+#endif
 
 import Data.Either           (isLeft)
 import Data.Word             (Word8)
