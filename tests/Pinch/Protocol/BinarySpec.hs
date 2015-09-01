@@ -22,7 +22,7 @@ import Pinch.Protocol.Binary (binaryProtocol)
 
 
 serialize :: IsTType a => Value a -> ByteString
-serialize = toStrict . BB.toLazyByteString . serializeValue binaryProtocol
+serialize = toStrict . BB.toLazyByteString . snd . serializeValue binaryProtocol
 
 
 deserialize :: IsTType a => ByteString -> Either String (Value a)

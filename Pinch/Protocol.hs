@@ -17,6 +17,7 @@ module Pinch.Protocol
 
 import Data.ByteString         (ByteString)
 import Data.ByteString.Builder (Builder)
+import Data.Int                (Int64)
 
 import Pinch.Internal.Message (Message)
 import Pinch.Internal.TType   (IsTType)
@@ -24,10 +25,14 @@ import Pinch.Internal.Value   (Value)
 
 -- | Defines a grouping of functions that together compose a Thrift protocol.
 data Protocol = Protocol
-    { serializeValue   :: forall a. IsTType a => Value a -> Builder
+    { serializeValue   :: forall a. IsTType a => Value a -> (Int64, Builder)
     -- ^ Serializes a 'Value' into a ByteString builder.
-    , serializeMessage :: forall a. IsTType a => Message a -> Builder
+    --
+    -- Returns a @Builder@ and the total length of the serialized content.
+    , serializeMessage :: forall a. IsTType a => Message a -> (Int64, Builder)
     -- ^ Serializes a 'Message' and its payload into a ByteString builder.
+    --
+    -- Returns a @Builder@ and the total length of the serialized content.
 
     , deserializeValue
         :: forall a. IsTType a => ByteString -> Either String (Value a)

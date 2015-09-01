@@ -159,7 +159,7 @@ import Pinch.Protocol.Binary
 -- [11,0,0,0,2,0,0,0,1,97,0,0,0,1,98]
 --
 encode :: Pinchable a => Protocol -> a -> ByteString
-encode p = toStrict . BB.toLazyByteString . serializeValue p . pinch
+encode p = toStrict . BB.toLazyByteString . snd . serializeValue p . pinch
 
 -- | Decode a 'Pinchable' value from the using the given 'Protocol'.
 --

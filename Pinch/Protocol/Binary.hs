@@ -19,15 +19,12 @@ import Control.Applicative
 
 import Control.Monad
 import Data.ByteString         (ByteString)
-import Data.ByteString.Builder (Builder)
 import Data.HashMap.Strict     (HashMap)
 import Data.HashSet            (HashSet)
 import Data.Int                (Int16, Int8)
-import Data.Monoid
 import Data.Vector             (Vector)
 
 import qualified Data.ByteString         as B
-import qualified Data.ByteString.Builder as BB
 import qualified Data.HashMap.Strict     as M
 import qualified Data.HashSet            as S
 import qualified Data.Text.Encoding      as TE
@@ -38,28 +35,30 @@ import Pinch.Internal.Parser  (Parser, runParser)
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol         (Protocol (..))
+import Pinch.Internal.Builder (Build)
 
+import qualified Pinch.Internal.Builder as BB
 import qualified Pinch.Internal.Parser as P
 
 
 -- | Provides an implementation of the Thrift Binary Protocol.
 binaryProtocol :: Protocol
 binaryProtocol = Protocol
-    { serializeValue     = binarySerialize
+    { serializeValue     = BB.run . binarySerialize
     , deserializeValue   = binaryDeserialize ttype
-    , serializeMessage   = binarySerializeMessage
+    , serializeMessage   = BB.run . binarySerializeMessage
     , deserializeMessage = binaryDeserializeMessage
     }
 
 ------------------------------------------------------------------------------
 
-binarySerializeMessage :: Message a -> Builder
-binarySerializeMessage msg = mconcat
-    [ binarySerialize . VBinary . TE.encodeUtf8 $ messageName msg
-    , BB.int8 $ messageCode (messageType msg)
-    , BB.int32BE (messageId msg)
-    , binarySerialize (messageBody msg)
-    ]
+binarySerializeMessage :: Message a -> Build
+binarySerializeMessage msg = do
+    binarySerialize . VBinary . TE.encodeUtf8 $ messageName msg
+    BB.int8  $ messageCode (messageType msg)
+    BB.int32 $ messageId msg
+    binarySerialize (messageBody msg)
+
 
 binaryDeserializeMessage
     :: IsTType a => ByteString -> Either String (Message a)
@@ -178,60 +177,58 @@ parseStruct = P.int8 >>= loop M.empty
 
 ------------------------------------------------------------------------------
 
-binarySerialize :: Value a -> Builder
+binarySerialize :: Value a -> Build
 binarySerialize v0 = case v0 of
-  VBinary  x -> BB.int32BE (fromIntegral $ B.length x) <> BB.byteString x
+  VBinary  x -> do
+    BB.int32 . fromIntegral . B.length $ x
+    BB.byteString x
   VBool    x -> BB.int8 $ if x then 1 else 0
-  VByte    x -> BB.int8     x
-  VDouble  x -> BB.doubleBE x
-  VInt16   x -> BB.int16BE  x
-  VInt32   x -> BB.int32BE  x
-  VInt64   x -> BB.int64BE  x
+  VByte    x -> BB.int8   x
+  VDouble  x -> BB.double x
+  VInt16   x -> BB.int16  x
+  VInt32   x -> BB.int32  x
+  VInt64   x -> BB.int64  x
   VStruct xs -> serializeStruct xs
   VList   xs -> serializeList ttype       xs
   VMap    xs -> serializeMap  ttype ttype xs
   VSet    xs -> serializeSet  ttype       xs
 
 
-serializeStruct :: HashMap Int16 SomeValue -> Builder
-serializeStruct fields =
-    mconcat (map go (M.toList fields)) <> BB.int8 0
-  where
-    go (fieldId, SomeValue fieldValue) =
+serializeStruct :: HashMap Int16 SomeValue -> Build
+serializeStruct fields = do
+    forM_ (M.toList fields) $ \(fieldId, SomeValue fieldValue) ->
         writeField fieldId ttype fieldValue
-
-    writeField :: Int16 -> TType a -> Value a -> Builder
-    writeField fieldId fieldType fieldValue = mconcat
-        [ BB.int8 $ toTypeCode fieldType
-        , BB.int16BE fieldId
-        , binarySerialize fieldValue
-        ]
-
-
-serializeList :: TType a -> Vector (Value a) -> Builder
-serializeList vtype xs = mconcat
-    [ BB.int8   $ toTypeCode vtype
-    , BB.int32BE $ fromIntegral (V.length xs)
-    , mconcat    $ map binarySerialize (V.toList xs)
-    ]
+    BB.int8 0
+  where
+    writeField :: Int16 -> TType a -> Value a -> Build
+    writeField fieldId fieldType fieldValue = do
+        BB.int8 (toTypeCode fieldType)
+        BB.int16 fieldId
+        binarySerialize fieldValue
 
 
-serializeMap :: TType k -> TType v -> HashMap (Value k) (Value v) -> Builder
-serializeMap kt vt xs = mconcat
-    [ BB.int8   $ toTypeCode kt
-    , BB.int8   $ toTypeCode vt
-    , BB.int32BE $ fromIntegral (M.size xs)
-    , mconcat    $
-        map (\(k, v) -> binarySerialize k <> binarySerialize v) (M.toList xs)
-    ]
+serializeList :: TType a -> Vector (Value a) -> Build
+serializeList vtype xs = do
+    BB.int8  $ toTypeCode vtype
+    BB.int32 $ fromIntegral (V.length xs)
+    mapM_ binarySerialize (V.toList xs)
 
 
-serializeSet :: TType a -> HashSet (Value a) -> Builder
-serializeSet vtype xs = mconcat
-    [ BB.int8   $ toTypeCode vtype
-    , BB.int32BE $ fromIntegral (S.size xs)
-    , mconcat    $ map binarySerialize (S.toList xs)
-    ]
+serializeMap :: TType k -> TType v -> HashMap (Value k) (Value v) -> Build
+serializeMap kt vt xs = do
+    BB.int8  $ toTypeCode kt
+    BB.int8  $ toTypeCode vt
+    BB.int32 $ fromIntegral (M.size xs)
+    forM_ (M.toList xs) $ \(k, v) -> do
+        binarySerialize k
+        binarySerialize v
+
+
+serializeSet :: TType a -> HashSet (Value a) -> Build
+serializeSet vtype xs = do
+    BB.int8  $ toTypeCode vtype
+    BB.int32 $ fromIntegral (S.size xs)
+    mapM_ binarySerialize (S.toList xs)
 
 
 ------------------------------------------------------------------------------

@@ -36,6 +36,7 @@ source-repository head
 
 library
   exposed-modules  : Pinch.Generic
+                   , Pinch.Internal.Builder
                    , Pinch.Internal.Message
                    , Pinch.Internal.Parser
                    , Pinch.Internal.Pinchable
@@ -67,6 +68,7 @@ test-suite pinch-spec
                    , Pinch.Expectations
                    , Pinch.GenericSpec
                    , Pinch.Protocol.BinarySpec
+                   , Pinch.Internal.BuilderSpec
                    , Pinch.Internal.ParserSpec
                    , Pinch.Internal.PinchableSpec
                    , Pinch.Internal.TTypeSpec
