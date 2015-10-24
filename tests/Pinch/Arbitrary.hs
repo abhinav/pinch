@@ -13,16 +13,19 @@ module Pinch.Arbitrary
 import Control.Applicative
 #endif
 
-import Data.ByteString (ByteString)
+import Data.ByteString    (ByteString)
+import Data.Text          (Text)
 import Test.QuickCheck
 
 import qualified Data.ByteString     as B
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet        as S
+import qualified Data.Text           as Tx
 import qualified Data.Vector         as V
 
-import qualified Pinch.Internal.TType as T
-import qualified Pinch.Internal.Value as V
+import qualified Pinch.Internal.Message as TM
+import qualified Pinch.Internal.TType   as T
+import qualified Pinch.Internal.Value   as V
 
 #if !MIN_VERSION_QuickCheck(2, 8, 0)
 scale :: (Int -> Int) -> Gen a -> Gen a
@@ -43,6 +46,13 @@ instance Arbitrary SomeByteString where
         | B.null bs = []
         | otherwise =
             SomeByteString . B.pack <$> shrink (B.unpack bs)
+
+newtype SomeText = SomeText { getSomeText :: Text }
+
+instance Arbitrary SomeText where
+    arbitrary = SomeText . Tx.pack <$> arbitrary
+    shrink = map (SomeText . Tx.pack) . shrink . Tx.unpack . getSomeText
+
 
 instance Arbitrary T.SomeTType where
     arbitrary = elements
@@ -127,3 +137,28 @@ instance T.IsTType a => Arbitrary (V.Value a) where
         shrinkBinary (V.VBinary bs)
             | B.null bs = []
             | otherwise = V.VBinary . B.pack <$> shrink (B.unpack bs)
+
+
+instance Arbitrary TM.MessageType where
+    arbitrary = elements
+        [ TM.CallMessage
+        , TM.ReplyMessage
+        , TM.ExceptionMessage
+        , TM.OnewayMessage
+        ]
+    shrink _ = []
+
+
+instance T.IsTType a => Arbitrary (TM.Message a) where
+    arbitrary =
+        TM.Message
+            <$> (getSomeText <$> arbitrary)
+            <*> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+
+    shrink (TM.Message name  typ  mid  body) =
+        [   TM.Message name' typ' mid' body'
+        | (SomeText name', typ', mid', body') <-
+            shrink ((SomeText name), typ, mid, body)
+        ]

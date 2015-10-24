@@ -53,5 +53,8 @@ data Message a = Message
     -- ^ Contents of the message.
     }
   deriving (Show, Eq, Typeable, Generic)
+    -- Worth noting that Thrift's messages only contain structs/unions but
+    -- since we can intrepret the type based on context, we can parse any kind
+    -- of value in the message.
 
 instance NFData (Message a)

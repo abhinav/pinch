@@ -13,12 +13,13 @@ import Test.QuickCheck
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Builder as BB
 
-import Pinch.Arbitrary       ()
+import Pinch.Arbitrary        ()
+import Pinch.Internal.Message
 import Pinch.Internal.TType
 import Pinch.Internal.Util
-import Pinch.Internal.Value  (SomeValue (..), Value (..))
-import Pinch.Protocol        (Protocol (..))
-import Pinch.Protocol.Binary (binaryProtocol)
+import Pinch.Internal.Value   (SomeValue (..), Value (..))
+import Pinch.Protocol         (Protocol (..))
+import Pinch.Protocol.Binary  (binaryProtocol)
 
 
 serialize :: IsTType a => Value a -> ByteString
@@ -29,6 +30,14 @@ deserialize :: IsTType a => ByteString -> Either String (Value a)
 deserialize = deserializeValue binaryProtocol
 
 
+serializeMsg :: IsTType a => Message a -> ByteString
+serializeMsg =
+    toStrict . BB.toLazyByteString . snd . serializeMessage binaryProtocol
+
+deserializeMsg :: IsTType a => ByteString -> Either String (Message a)
+deserializeMsg = deserializeMessage binaryProtocol
+
+
 -- | For each given pair, verifies that parsing the byte array yields the
 -- value, and that serializing the value yields the byte array.
 readWriteCases :: IsTType a => [([Word8], Value a)] -> Expectation
@@ -36,6 +45,18 @@ readWriteCases = mapM_ . uncurry $ \bytes value -> do
     let bs = B.pack bytes
     deserialize bs  `shouldBe` Right value
     serialize value `shouldBe` bs
+
+
+readWriteMessageCases :: IsTType a => [([Word8], Message a)] -> Expectation
+readWriteMessageCases = mapM_ . uncurry $ \bytes msg -> do
+    let bs = B.pack bytes
+    deserializeMsg bs  `shouldBe` Right msg
+    serializeMsg msg `shouldBe` bs
+
+
+readMessageCases :: IsTType a => [([Word8], Message a)] -> Expectation
+readMessageCases = mapM_ . uncurry $ \bytes msg ->
+    deserializeMsg (B.pack bytes)  `shouldBe` Right msg
 
 
 -- | For each pair, verifies that if the given TType is parsed, the request
@@ -71,6 +92,9 @@ spec = describe "BinaryProtocol" $ do
 
     prop "can roundtrip values" $ \(SomeValue someVal) ->
         deserialize (serialize someVal) === Right someVal
+
+    prop "can roundtrip messages" $ \(msg :: Message TStruct) ->
+        deserializeMsg (serializeMsg msg) == Right msg
 
     it "can read and write booleans" $ readWriteCases
         [ ([0x01], vbool True)
@@ -190,4 +214,43 @@ spec = describe "BinaryProtocol" $ do
         , (SomeTType TMap, [0x05, 0x07, 0x00, 0x00, 0x00, 0x00])
         , (SomeTType TSet, [0x09, 0x00, 0x00, 0x00, 0x00])
         , (SomeTType TList, [0x10, 0x00, 0x00, 0x00, 0x00])
+        ]
+
+    it "can read and write messages" $ readWriteMessageCases
+        [ ([ 0x00, 0x00, 0x00, 0x06                 -- length = 6
+           , 0x67, 0x65, 0x74, 0x46, 0x6f, 0x6f     -- 'getFoo'
+           , 0x01                                   -- type = Call
+           , 0x00, 0x00, 0x00, 0x2a                 -- seqId = 42
+           , 0x00                                   -- empty struct
+           ], Message "getFoo" CallMessage 42 (vstruct [])),
+          ([ 0x00, 0x00, 0x00, 0x06                 -- length = 6
+           , 0x73, 0x65, 0x74, 0x42, 0x61, 0x72     -- 'setBar'
+           , 0x02                                   -- type = Reply
+           , 0x00, 0x00, 0x00, 0x01                 -- seqId = 1
+           , 0x00
+           ], Message "setBar" ReplyMessage 1 (vstruct []))
+        ]
+
+    it "can read strict messages" $ readMessageCases
+        [ ([ 0x80, 0x01     -- version = 1
+           , 0x00, 0x03     -- type = Exception
+
+           , 0x00, 0x00, 0x00, 0x06              -- length = 6
+           , 0x67, 0x65, 0x74, 0x46, 0x6f, 0x6f  -- 'getFoo'
+
+           , 0x00, 0x00, 0x00, 0x2a  -- seqId = 42
+
+           , 0x02, 0x00, 0x01, 0x01  -- {1: True}
+           , 0x00
+           ], Message "getFoo" ExceptionMessage 42 (vstruct [(1, vbool_ True)]))
+        , ([ 0x80, 0x01     -- version = 1
+           , 0x00, 0x04     -- type = EXCEPTION
+
+           , 0x00, 0x00, 0x00, 0x06              -- length = 6
+           , 0x73, 0x65, 0x74, 0x42, 0x61, 0x72  -- 'setBar'
+
+           , 0x00, 0x00, 0x00, 0x01  -- seqId = 1
+
+           , 0x00
+           ], Message "setBar" OnewayMessage 1 (vstruct []))
         ]

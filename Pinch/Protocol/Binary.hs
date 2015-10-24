@@ -18,27 +18,28 @@ import Control.Applicative
 #endif
 
 import Control.Monad
-import Data.ByteString         (ByteString)
-import Data.HashMap.Strict     (HashMap)
-import Data.HashSet            (HashSet)
-import Data.Int                (Int16, Int8)
-import Data.Vector             (Vector)
+import Data.Bits           (shiftR, (.&.))
+import Data.ByteString     (ByteString)
+import Data.HashMap.Strict (HashMap)
+import Data.HashSet        (HashSet)
+import Data.Int            (Int16, Int8)
+import Data.Vector         (Vector)
 
-import qualified Data.ByteString         as B
-import qualified Data.HashMap.Strict     as M
-import qualified Data.HashSet            as S
-import qualified Data.Text.Encoding      as TE
-import qualified Data.Vector             as V
+import qualified Data.ByteString     as B
+import qualified Data.HashMap.Strict as M
+import qualified Data.HashSet        as S
+import qualified Data.Text.Encoding  as TE
+import qualified Data.Vector         as V
 
+import Pinch.Internal.Builder (Build)
 import Pinch.Internal.Message
 import Pinch.Internal.Parser  (Parser, runParser)
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol         (Protocol (..))
-import Pinch.Internal.Builder (Build)
 
 import qualified Pinch.Internal.Builder as BB
-import qualified Pinch.Internal.Parser as P
+import qualified Pinch.Internal.Parser  as P
 
 
 -- | Provides an implementation of the Thrift Binary Protocol.
@@ -66,12 +67,37 @@ binaryDeserializeMessage = runParser binaryMessageParser
 
 binaryMessageParser :: IsTType a => Parser (Message a)
 binaryMessageParser = do
-    name <- parseBinary >>= \n -> case n of
-        VBinary x -> return $ TE.decodeUtf8 x
-    Message name
-        <$> parseMessageType
-        <*> P.int32
-        <*> binaryParser ttype
+    size <- P.int32
+    if size < 0
+        then parseStrict size
+        else parseNonStrict size
+  where
+    -- versionAndType:4 name~4 seqid:4 payload
+    -- versionAndType = version:2 0x00 type:1
+    parseStrict versionAndType = do
+        unless (version == 1) $
+            fail $ "Unsupported version: " ++ show version
+        Message
+            <$> TE.decodeUtf8 <$> (P.int32 >>= P.take . fromIntegral)
+            <*> typ
+            <*> P.int32
+            <*> binaryParser ttype
+      where
+        version = (0x7fff0000 .&. versionAndType) `shiftR` 16
+
+        code = fromIntegral $ 0x00ff .&. versionAndType
+        typ = case fromMessageCode code of
+            Nothing -> fail $ "Unknown message type: " ++ show code
+            Just t -> return t
+
+    -- name~4 type:1 seqid:4 payload
+    parseNonStrict nameLength =
+        Message
+            <$> TE.decodeUtf8 <$> P.take (fromIntegral nameLength)
+            <*> parseMessageType
+            <*> P.int32
+            <*> binaryParser ttype
+
 
 parseMessageType :: Parser MessageType
 parseMessageType = P.int8 >>= \code -> case fromMessageCode code of
