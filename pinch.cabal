@@ -87,3 +87,23 @@ test-suite pinch-spec
 
                    , pinch
   default-language : Haskell2010
+
+
+benchmark pinch-bench
+  type             : exitcode-stdio-1.0
+  main-is          : Bench.hs
+  hs-source-dirs   : bench
+  ghc-options      : -O2 -Wall
+  build-depends    : base
+                   , bytestring
+                   , criterion >= 1.0
+                   , deepseq
+                   , QuickCheck >= 2.8
+                   , text
+
+                   , pinch
+  default-language : Haskell2010
+
+source-repository head
+  type     : git
+  location : git://github.com/abhinav/pinch.git

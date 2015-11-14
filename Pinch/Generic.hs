@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -49,6 +50,7 @@ import Data.Traversable (Traversable)
 #endif
 
 import Control.Applicative
+import Control.DeepSeq     (NFData)
 import Data.Proxy          (Proxy (..))
 import Data.Typeable       (Typeable)
 import GHC.Generics
@@ -121,8 +123,8 @@ instance
 -- new data type.
 newtype Field (n :: Nat) a = Field a
   deriving
-    (Bounded, Eq, Enum, Foldable, Functor, Monoid, Ord, Show, Traversable,
-     Typeable)
+    (Bounded, Eq, Enum, Foldable, Functor, Generic, Monoid, NFData, Ord, Show,
+     Traversable, Typeable)
 
 -- | Gets the current value of a field.
 --
@@ -178,7 +180,9 @@ instance
 -- > instance Pinchable Role
 data Enumeration (n :: Nat) = Enumeration
   deriving
-    (Eq, Ord, Show, Typeable)
+    (Eq, Generic, Ord, Show, Typeable)
+
+instance NFData (Enumeration n)
 
 -- | Convenience function to construct 'Enumeration' objects.
 --
