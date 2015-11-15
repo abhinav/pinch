@@ -154,7 +154,7 @@ import Data.Text            (Text)
 
 import qualified Data.ByteString.Builder as BB
 
-import Pinch.Generic
+import Pinch.Internal.Generic
 import Pinch.Internal.Message
 import Pinch.Internal.Pinchable
 import Pinch.Internal.TType

@@ -22,7 +22,7 @@
 #define OVERLAPPABLE {-# OVERLAPPABLE #-}
 #endif
 -- |
--- Module      :  Pinch.Generic
+-- Module      :  Pinch.Internal.Generic
 -- Copyright   :  (c) Abhinav Gupta 2015
 -- License     :  BSD3
 --
@@ -32,7 +32,7 @@
 -- Implements support for automatically deriving Pinchable instances for types
 -- that implement @Generic@ and follow a specific pattern.
 --
-module Pinch.Generic
+module Pinch.Internal.Generic
     ( Field(..)
     , getField
     , putField

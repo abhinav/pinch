@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Pinch.GenericSpec (spec) where
+module Pinch.Internal.GenericSpec (spec) where
 
 import Data.ByteString       (ByteString)
 import Data.Int              (Int32, Int8)
@@ -17,7 +17,7 @@ import qualified Data.Set as S
 import Pinch.Expectations
 import Pinch.Internal.Util
 
-import qualified Pinch.Generic            as G
+import qualified Pinch.Internal.Generic   as G
 import qualified Pinch.Internal.Pinchable as P
 import qualified Pinch.Internal.TType     as T
 import qualified Pinch.Internal.Value     as V
