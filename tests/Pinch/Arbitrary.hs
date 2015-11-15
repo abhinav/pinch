@@ -141,10 +141,10 @@ instance T.IsTType a => Arbitrary (V.Value a) where
 
 instance Arbitrary TM.MessageType where
     arbitrary = elements
-        [ TM.CallMessage
-        , TM.ReplyMessage
-        , TM.ExceptionMessage
-        , TM.OnewayMessage
+        [ TM.Call
+        , TM.Reply
+        , TM.Exception
+        , TM.Oneway
         ]
     shrink _ = []
 

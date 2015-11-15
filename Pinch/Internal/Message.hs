@@ -29,22 +29,22 @@ import Pinch.Internal.Value (Value)
 
 -- | Type of message being sent.
 data MessageType
-    = CallMessage
+    = Call
     -- ^ A call to a specific method.
     --
     -- The message body is the request arguments struct.
-    | ReplyMessage
+    | Reply
     -- ^ Response to a call.
     --
     -- The message body is the response union.
-    | ExceptionMessage
+    | Exception
     -- ^ Failure to make a call.
     --
     -- Note: This message type is /not/ used for exceptions that are defined
     -- under the @throws@ clause of a method. Those exceptions are part of the
-    -- response union of the method and are received in a @ReplyMessage@. This
+    -- response union of the method and are received in a @Reply@. This
     -- message type is used to Thrift-level failures.
-    | OnewayMessage
+    | Oneway
     -- ^ One-way call that expects no response.
   deriving (Show, Eq, Data, Typeable, Generic)
 

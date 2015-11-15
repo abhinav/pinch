@@ -60,13 +60,13 @@ app store request respond = do
             Left err -> handleError err
             Right (req :: GetValueRequest) -> do
                 res <- getValue store req
-                let reply = P.mkMessage "getValue" P.ReplyMessage mid res
+                let reply = P.mkMessage "getValue" P.Reply mid res
                 respondSuccess $ encode reply
         "setValue" -> case P.getMessageBody m of
             Left err -> handleError err
             Right (req :: SetValueRequest) -> do
                 res <- setValue store req
-                let reply = P.mkMessage "setValue" P.ReplyMessage mid res
+                let reply = P.mkMessage "setValue" P.Reply mid res
                 respondSuccess $ encode reply
         name -> handleError $ "Unknown method: " ++ show name
         -- TODO use TApplicationException format for this

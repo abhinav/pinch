@@ -29,18 +29,16 @@ main = do
             ( P.Pinchable req, P.Pinchable res
             , P.Tag req ~ P.TStruct
             , P.Tag res ~ P.TStruct
-            ) => Text -> req -> IO (Maybe res)
+            ) => Text -> req -> IO (Either String res)
         mkRequest name call = do
             res <- HTTP.httpLbs req manager
             if not (HTTP.statusIsSuccessful (HTTP.responseStatus res))
-                then return Nothing
-                else case decode (toStrict $ HTTP.responseBody res) of
-                    Left _ -> return Nothing
-                    Right msg -> case P.getMessageBody msg of
-                        Left _ -> return Nothing
-                        Right (reply :: res) -> return (Just reply)
+                then return (Left "request failed")
+                else return
+                        (decode (toStrict $ HTTP.responseBody res)
+                         >>= P.getMessageBody)
           where
-            message = P.mkMessage name P.CallMessage 0 call
+            message = P.mkMessage name P.Call 0 call
             req = baseRequest
                 { HTTP.method = "POST"
                 , HTTP.requestBody = HTTP.RequestBodyBS . encode $ message
@@ -54,16 +52,16 @@ main = do
                 res <- mkRequest "getValue" $
                     GetValueRequest (P.putField key)
                 case res of
-                    Just (GetValueSuccess value) -> print value
-                    Just (GetValueDoesNotExist _) -> putStrLn "No matching value."
-                    Nothing -> putStrLn "error making request"
+                    Left err -> putStrLn err
+                    Right (GetValueSuccess value) -> print value
+                    Right (GetValueDoesNotExist _) -> putStrLn "No matching value."
                 loop
             ["set", key, value] -> do
                 let v = ValueBin (P.putField (encodeUtf8 value))
                 res <- mkRequest "setValue" $
                     SetValueRequest (P.putField key) (P.putField v)
                 case res of
-                    Just (SetValueSuccess _) -> putStrLn "Done"
-                    Nothing -> putStrLn "error making request"
+                    Right (SetValueSuccess _) -> putStrLn "Done"
+                    Left err -> putStrLn err
                 loop
             _ -> putStrLn "Invalid command" >> loop

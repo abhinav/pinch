@@ -257,7 +257,7 @@ decode p = deserializeValue p >=> unpinch
 --
 -- @
 -- let req = GetUserRequest "jsmith" []
---     msg = 'mkMessage' "getUser" 'CallMessage' 0 req
+--     msg = 'mkMessage' "getUser" 'Call' 0 req
 -- response <- sendToServer ('encodeMessage' msg)
 -- case 'decodeMessage' response of
 --     Left err -> handleError err
@@ -277,7 +277,7 @@ decode p = deserializeValue p >=> unpinch
 --             Right (req :: GetUserRequest) -> do
 --                 let mid = 'messageId' msg
 --                 res <- handleGetUser req
---                 return (mkMessage "getUser" 'ReplyMessage' mid res)
+--                 return (mkMessage "getUser" 'Reply' mid res)
 --                 -- Note that the response MUST contain the same
 --                 -- message ID as its request.
 --         _ -> handleUnknownMethod
@@ -287,7 +287,7 @@ decode p = deserializeValue p >=> unpinch
 --
 -- @
 -- let request = GetUserRequest (putField "jsmith") (putField [])
---     message = 'mkMessage' "getUser" CallMessage 42 request
+--     message = 'mkMessage' "getUser" Call 42 request
 -- in encodeMessage binaryProtocol message
 -- @
 --

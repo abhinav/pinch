@@ -260,17 +260,17 @@ serializeSet vtype xs = do
 
 
 messageCode :: MessageType -> Int8
-messageCode CallMessage      = 1
-messageCode ReplyMessage     = 2
-messageCode ExceptionMessage = 3
-messageCode OnewayMessage    = 4
+messageCode Call      = 1
+messageCode Reply     = 2
+messageCode Exception = 3
+messageCode Oneway    = 4
 
 
 fromMessageCode :: Int8 -> Maybe MessageType
-fromMessageCode 1 = Just CallMessage
-fromMessageCode 2 = Just ReplyMessage
-fromMessageCode 3 = Just ExceptionMessage
-fromMessageCode 4 = Just OnewayMessage
+fromMessageCode 1 = Just Call
+fromMessageCode 2 = Just Reply
+fromMessageCode 3 = Just Exception
+fromMessageCode 4 = Just Oneway
 fromMessageCode _ = Nothing
 
 

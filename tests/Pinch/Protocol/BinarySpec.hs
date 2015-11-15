@@ -222,13 +222,13 @@ spec = describe "BinaryProtocol" $ do
            , 0x01                                   -- type = Call
            , 0x00, 0x00, 0x00, 0x2a                 -- seqId = 42
            , 0x00                                   -- empty struct
-           ], Message "getFoo" CallMessage 42 (vstruct [])),
+           ], Message "getFoo" Call 42 (vstruct [])),
           ([ 0x00, 0x00, 0x00, 0x06                 -- length = 6
            , 0x73, 0x65, 0x74, 0x42, 0x61, 0x72     -- 'setBar'
            , 0x02                                   -- type = Reply
            , 0x00, 0x00, 0x00, 0x01                 -- seqId = 1
            , 0x00
-           ], Message "setBar" ReplyMessage 1 (vstruct []))
+           ], Message "setBar" Reply 1 (vstruct []))
         ]
 
     it "can read strict messages" $ readMessageCases
@@ -242,7 +242,7 @@ spec = describe "BinaryProtocol" $ do
 
            , 0x02, 0x00, 0x01, 0x01  -- {1: True}
            , 0x00
-           ], Message "getFoo" ExceptionMessage 42 (vstruct [(1, vbool_ True)]))
+           ], Message "getFoo" Exception 42 (vstruct [(1, vbool_ True)]))
         , ([ 0x80, 0x01     -- version = 1
            , 0x00, 0x04     -- type = EXCEPTION
 
@@ -252,5 +252,5 @@ spec = describe "BinaryProtocol" $ do
            , 0x00, 0x00, 0x00, 0x01  -- seqId = 1
 
            , 0x00
-           ], Message "setBar" OnewayMessage 1 (vstruct []))
+           ], Message "setBar" Oneway 1 (vstruct []))
         ]
