@@ -6,6 +6,7 @@ module Pinch.GenericSpec (spec) where
 import Data.ByteString       (ByteString)
 import Data.Int              (Int32, Int8)
 import Data.Set              (Set)
+import Data.Text             (Text)
 import GHC.Generics          (Generic)
 import GHC.TypeLits          ()
 import Test.Hspec
@@ -56,6 +57,14 @@ data AUnion
 instance P.Pinchable AUnion
 
 
+data UnionWithVoid
+    = UnionVoidBefore (G.Field 1 Int8)
+    | UnionVoid G.Void
+    | UnionVoidAfter (G.Field 2 Text)
+  deriving (Show, Ord, Eq, Generic)
+
+instance P.Pinchable UnionWithVoid
+
 unionSpec :: Spec
 unionSpec = describe "Union" $ do
 
@@ -74,6 +83,15 @@ unionSpec = describe "Union" $ do
               vstruct
                 [(5, vset_ [vi32 1, vi32 2])]
 
+    it "can pinch (4)" $ do
+        P.pinch (UnionVoidBefore (G.putField 42))
+            `shouldBe` vstruct [(1, vbyt_ 42)]
+
+        P.pinch (UnionVoidAfter (G.putField "foo"))
+            `shouldBe` vstruct [(2, vbin_ "foo")]
+
+        P.pinch (UnionVoid G.Void) `shouldBe` vstruct []
+
     it "can unpinch" $ do
         P.unpinch (vstruct [(1, vdub_ 12.34)])
             `shouldBe` Right (UnionDouble $ G.putField 12.34)
@@ -86,6 +104,14 @@ unionSpec = describe "Union" $ do
             `shouldBe` Right
                 (UnionSet . G.putField . S.fromList
                     $ [EnumA G.enum, EnumB G.enum])
+
+        P.unpinch (vstruct [(1, vbyt_ 42)])
+            `shouldBe` Right (UnionVoidBefore $ G.putField 42)
+
+        P.unpinch (vstruct [(2, vbin_ "foo")])
+            `shouldBe` Right (UnionVoidAfter $ G.putField "foo")
+
+        P.unpinch (vstruct []) `shouldBe` Right (UnionVoid G.Void)
 
     it "reject invalid types" $ do
         (P.unpinch :: V.Value T.TUnion -> Either String AUnion)

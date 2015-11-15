@@ -48,6 +48,8 @@ module Pinch
     , putField
     , field
 
+    , Void(..)
+
     -- *** Enums
     -- $genericEnum
 
@@ -387,6 +389,14 @@ getMessageBody = unpinch . messagePayload
 -- The @DeriveGeneric@ extension is required to automatically derive instances
 -- of the @Generic@ typeclass and the @DataKinds@ extension is required to use
 -- type-level numerals.
+--
+-- If the union represents the response of a service method which returns a
+-- @void@ result, the type 'Void' may be used.
+--
+-- > data GetFooResponse
+-- >   = GetFooDoesNotExist  (Field 1 FooDoesNotExist)
+-- >   | GetFooInternalError (Field 2 InternalError)
+-- >   | GetFooSuccess Void
 
 ------------------------------------------------------------------------------
 

@@ -40,6 +40,8 @@ module Pinch.Generic
 
     , Enumeration(..)
     , enum
+
+    , Void(..)
     ) where
 
 
@@ -82,7 +84,7 @@ instance (Datatype d, GPinchable a) => GPinchable (D1 d a) where
     type GTag (D1 d a) = GTag a
     gPinch = gPinch . unM1
     gUnpinch v = case gUnpinch v of
-        Left msg -> Left $ "Failed to read '" ++ name ++ "'. " ++ msg
+        Left msg -> Left $ "Failed to read '" ++ name ++ "': " ++ msg
         Right a -> Right $ M1 a
       where
         name = datatypeName (undefined :: D1 d a b)
@@ -199,3 +201,39 @@ instance KnownNat n => GPinchable (K1 i (Enumeration n)) where
       where
         val = fromIntegral $ natVal (Proxy :: Proxy n)
     gUnpinch x = Left $ "Failed to read enum. Got " ++ show x
+
+------------------------------------------------------------------------------
+
+-- | Represents a @void@ result for methods.
+--
+-- This should be used as an element in a response union along with 'Field'
+-- tags.
+--
+-- For a method,
+--
+-- > void setValue(..) throws
+-- >   (1: ValueAlreadyExists alreadyExists,
+-- >    2: InternalError internalError)
+--
+-- Something similar to the following can be used.
+--
+-- > data SetValueResponse
+-- >   = SetValueAlreadyExists (Field 1 ValueAlreadyExists)
+-- >   | SetValueInternalError (Field 2 InternalError)
+-- >   | SetValueSuccess Void
+-- >   deriving (Generic)
+-- >
+-- > instance Pinchable SetValueResponse
+data Void = Void
+  deriving
+    (Eq, Generic, Ord, Show, Typeable)
+
+instance GPinchable (K1 i Void) where
+    type GTag (K1 i Void) = TStruct
+
+    gPinch (K1 Void) = struct []
+
+    -- If the map isn't empty, there's probably an exception in there.
+    gUnpinch (VStruct m) | HM.null m = Right $ K1 Void
+    gUnpinch x = Left $
+        "Failed to read response. Expected void, got: " ++ show x
