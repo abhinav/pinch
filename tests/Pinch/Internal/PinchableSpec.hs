@@ -240,7 +240,8 @@ containerSpec = do
         it "rejects type mismatch" $
           (P.unpinch :: V.Value T.TList -> Either String (Vector Int8))
             (vlist [vi32 1, vi32 2, vi32 3])
-                `leftShouldContain` "Type mismatch"
+                `leftShouldContainAll`
+                    ["Type mismatch", "Expected TByte", "Got TInt32"]
 
     describe "List" $ do
 

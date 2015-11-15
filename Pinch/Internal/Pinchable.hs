@@ -45,7 +45,7 @@ import Data.Hashable       (Hashable)
 import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int64, Int8)
 import Data.Text           (Text)
-import Data.Typeable       ((:~:) (..), Typeable, eqT)
+import Data.Typeable       ((:~:) (..), eqT)
 import Data.Vector         (Vector)
 import GHC.Generics        (Generic, Rep)
 
@@ -189,11 +189,15 @@ union k v = VStruct (HM.singleton k (SomeValue $ pinch v))
 
 -- | Helper to 'unpinch' values by matching TTypes.
 checkedUnpinch
-    :: forall a b. (Pinchable a, Typeable b)
+    :: forall a b. (Pinchable a, IsTType b)
     => Value b -> Either String a
 checkedUnpinch = case eqT of
-    Nothing -> const $ Left "Type mismatch"
+    Nothing -> const . Left $
+        "Type mismatch. Expected " ++ show ttypeA ++ ". Got " ++ show ttypeB
     Just (Refl :: Tag a :~: b) -> unpinch
+  where
+    ttypeA = ttype :: TType (Tag a)
+    ttypeB = ttype :: TType b
 
 -- | Helper to 'pinch' maps.
 pinchMap
