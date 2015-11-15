@@ -149,7 +149,7 @@ instance Arbitrary TM.MessageType where
     shrink _ = []
 
 
-instance T.IsTType a => Arbitrary (TM.Message a) where
+instance Arbitrary TM.Message where
     arbitrary =
         TM.Message
             <$> (getSomeText <$> arbitrary)

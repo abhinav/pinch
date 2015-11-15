@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 -- |
 -- Module      :  Pinch
 -- Copyright   :  (c) Abhinav Gupta 2015
@@ -7,36 +8,39 @@
 -- Stability   :  experimental
 --
 -- Pinch defines machinery to specify how types can be encoded into or decoded
--- from Thrift payloads. Types that can be serialized and deserialized
--- into/from Thrift values implement the 'Pinchable' typeclass. The
--- 'Pinchable' typeclass converts objects into and from 'Value' objects, which
--- map directly to the over-the-wire representation of Thrift values. A
--- 'Protocol' is responsible for converting 'Value' objects to and from raw
--- bytestrings.
+-- from Thrift payloads.
 --
--- > +------------+   Pinchable   +------------+   Protocol    +------------+
--- > |            |               |            |               |            |
--- > |            +----pinch------>            +---serialize--->            |
--- > | Your Type  |               |  Value a   |               | ByteString |
--- > |            <---unpinch-----+            <--deserialize--+            |
--- > |            |               |            |               |            |
--- > +------------+               +------------+               +------------+
 module Pinch
     (
+
+    -- * Serializing and deserializing
+
+    -- $encodeDecodeValues
 
       encode
     , decode
 
-    -- * Automatically derived instances
+    -- * RPC
+
+    -- $rpc
+
+    , encodeMessage
+    , decodeMessage
+
+    -- * Pinchable
+
+    , Pinchable(..)
+
+    -- ** Automatically deriving instances
 
     -- | Pinch supports deriving instances of 'Pinchable' automatically for
     -- types that implement the @Generic@ typeclass provided that they follow
     -- the outlined patterns in their constructors.
 
-    -- ** Structs and exceptions
+    -- *** Structs and exceptions
     -- $genericStruct
 
-    -- ** Unions
+    -- *** Unions
     -- $genericUnion
 
     , Field(..)
@@ -44,29 +48,25 @@ module Pinch
     , putField
     , field
 
-    -- ** Enums
+    -- *** Enums
     -- $genericEnum
 
     , Enumeration(..)
     , enum
 
-    -- * Manually writing instances
+    -- ** Manually writing instances
 
     -- | Instances of 'Pinchable' can be constructed by composing together
     -- existing instances and using the '.=', '.:', etc. helpers.
 
-    -- ** Structs and exceptions
+    -- *** Structs and exceptions
     -- $struct
 
-    -- ** Unions
+    -- *** Unions
     -- $union
 
-    -- ** Enums
+    -- *** Enums
     -- $enum
-
-    -- * Pinchable
-
-    , Pinchable(..)
 
     -- ** Helpers
 
@@ -86,16 +86,22 @@ module Pinch
     -- * Value
 
     -- | 'Value' is an intermediate representation of Thrift payloads tagged
-    -- with TType tags. Types that want to be serialized into/deserialized
+    -- with TType tags. Types that want to be serialized into\/deserialized
     -- from Thrift payloads need only define a way to convert themselves to
     -- and from 'Value' objects via 'Pinchable'.
 
     , Value
     , SomeValue(..)
 
-    -- * Message
+    -- * Messages
 
-    , Message(..)
+    , Message
+    , mkMessage
+    , messageName
+    , messageType
+    , messageId
+    , getMessageBody
+
     , MessageType(..)
 
     -- * Protocols
@@ -103,9 +109,8 @@ module Pinch
     -- | Protocols define a specific way to convert values into binary and
     -- back.
 
-    , Protocol(..)
+    , Protocol
     , binaryProtocol
-
 
     -- * TType
 
@@ -142,6 +147,8 @@ module Pinch
 import Control.Monad
 import Data.ByteString      (ByteString)
 import Data.ByteString.Lazy (toStrict)
+import Data.Int             (Int32)
+import Data.Text            (Text)
 
 import qualified Data.ByteString.Builder as BB
 
@@ -153,13 +160,49 @@ import Pinch.Internal.Value
 import Pinch.Protocol
 import Pinch.Protocol.Binary
 
+builderToStrict :: BB.Builder -> ByteString
+builderToStrict = toStrict . BB.toLazyByteString
+{-# INLINE  builderToStrict #-}
+
+-- TODO we know the seize of the serialized payload. can probably pre-allocate
+-- the byte string before filling it with the contents of the builder.
+
+------------------------------------------------------------------------------
+
+-- $encodeDecodeValues
+--
+-- Types that can be serialized and deserialized into\/from Thrift values
+-- implement the 'Pinchable' typeclass. Instances may be derived automatically
+-- using generics, or written out by hand.
+--
+-- The 'Pinchable' typeclass converts objects into and from 'Value' objects,
+-- which act as a direct mapping to the Thrift wire representation.  A
+-- 'Protocol' is responsible for converting 'Value' objects to and from
+-- bytestrings.
+--
+-- The 'encode' and 'decode' methods may be used on objects that implement the
+-- 'Pinchable' typeclass to get the wire representation directly.
+--
+-- > +------------+   Pinchable                    Protocol    +------------+
+-- > |            |               +------------+               |            |
+-- > |            +----pinch------>            +---serialize--->            |
+-- > | Your Type  |               |  Value a   |               | ByteString |
+-- > |            <---unpinch-----+            <--deserialize--+            |
+-- > |            |               +------------+               |            |
+-- > |            |                                            |            |
+-- > |            +-------------------encode------------------->            |
+-- > |            |                                            |            |
+-- > |            <-------------------decode-------------------+            |
+-- > +------------+                                            +------------+
+
 -- | Encode the given 'Pinchable' value using the given 'Protocol'.
 --
 -- >>> unpack $ encode binaryProtocol ["a" :: ByteString, "b"]
 -- [11,0,0,0,2,0,0,0,1,97,0,0,0,1,98]
 --
 encode :: Pinchable a => Protocol -> a -> ByteString
-encode p = toStrict . BB.toLazyByteString . snd . serializeValue p . pinch
+encode p = builderToStrict . snd . serializeValue p . pinch
+{-# INLINE encode #-}
 
 -- | Decode a 'Pinchable' value from the using the given 'Protocol'.
 --
@@ -169,6 +212,122 @@ encode p = toStrict . BB.toLazyByteString . snd . serializeValue p . pinch
 --
 decode :: Pinchable a => Protocol -> ByteString -> Either String a
 decode p = deserializeValue p >=> unpinch
+{-# INLINE decode #-}
+
+------------------------------------------------------------------------------
+
+-- $rpc
+--
+-- Thrift requests implicitly form a struct and responses implicitly form a
+-- union. To send\/receive the request\/response, it must be wrapped inside a
+-- 'Message'. The 'Message' contains information like the method name, the
+-- message ID (to match out of order responses with requests), and whether
+-- it contains a request or a response.
+--
+-- Requests and responses may be wrapped into @Message@ objects using the
+-- 'mkMessage' function. The message body can be retrieved back using the
+-- 'getMessageBody' function. The 'encodeMessage' and 'decodeMessage'
+-- functions may be used to encode and decode messages into\/from bytestrings.
+--
+-- Consider the service method,
+--
+-- > User getUser(1: string userName, 2: list<Attribute> attributes)
+-- >   throws (1: UserDoesNotExist doesNotExist,
+-- >           2: InternalError internalError)
+--
+-- The request and response for this method implictly take the form:
+--
+-- > struct getUserRequest {
+-- >   1: string userName
+-- >   2: list<Attribute> attributes
+-- > }
+--
+-- > union getUserResponse {
+-- >   0: User success
+-- >   1: UserDoesNotExist doesNotExist
+-- >   2: InternalError InternalError
+-- > }
+--
+-- (Note that the field ID 0 is reserved for the return value of the method.)
+--
+-- Given corresponding data types @GetUserRequest@ and @GetUserResponse@, the
+-- client can do something similar to,
+--
+-- @
+-- let req = GetUserRequest "jsmith" []
+--     msg = 'mkMessage' "getUser" 'CallMessage' 0 req
+-- response <- sendToServer ('encodeMessage' msg)
+-- case 'decodeMessage' response of
+--     Left err -> handleError err
+--     Right msg -> case 'getMessageBody' msg of
+--         Left err -> handleError err
+--         Right (res :: GetUserResponse) -> handleResponse res
+-- @
+--
+-- Similarly, on the server side,
+--
+-- @
+-- case decodeMessage request of
+--     Left err -> handleError err
+--     Right msg -> case 'messageName' msg of
+--         "getUser" -> case getMessageBody msg of
+--             Left err -> handleError err
+--             Right (req :: GetUserRequest) -> do
+--                 let mid = 'messageId' msg
+--                 res <- handleGetUser req
+--                 return (mkMessage "getUser" 'ReplyMessage' mid res)
+--                 -- Note that the response MUST contain the same
+--                 -- message ID as its request.
+--         _ -> handleUnknownMethod
+-- @
+
+-- | Encode the 'Message' using the given 'Protocol'.
+--
+-- @
+-- let request = GetUserRequest (putField "jsmith") (putField [])
+--     message = 'mkMessage' "getUser" CallMessage 42 request
+-- in encodeMessage binaryProtocol message
+-- @
+--
+encodeMessage :: Protocol -> Message -> ByteString
+encodeMessage p = builderToStrict . snd . serializeMessage p
+{-# INLINE encodeMessage #-}
+
+-- | Decode a 'Message' using the given 'Protocol'.
+--
+-- >>> decodeMessage binaryProtocol bs >>= getMessageBody :: Either String GetUserRequest
+-- Right (GetUserRequest {userName = Field "jsmith", userAttributes = Field []})
+--
+decodeMessage :: Protocol -> ByteString -> Either String Message
+decodeMessage = deserializeMessage
+{-# INLINE decodeMessage #-}
+
+-- | Build a @Message@.
+mkMessage
+    :: (Pinchable a, Tag a ~ TStruct)
+    => Text
+    -- ^ Name of the target method.
+    -> MessageType
+    -- ^ Type of the message.
+    -> Int32
+    -- ^ Message ID.
+    -> a
+    -- ^ Message payload. This must be an object which serializes into a
+    -- struct.
+    -> Message
+mkMessage name typ mid body = Message name typ mid (pinch body)
+{-# INLINE mkMessage #-}
+
+-- | Read the message contents.
+--
+-- This returns a @Left@ result if the message contents do not match the
+-- requested type.
+getMessageBody
+    :: (Pinchable a, Tag a ~ TStruct) => Message -> Either String a
+getMessageBody = unpinch . messagePayload
+{-# INLINE getMessageBody #-}
+
+------------------------------------------------------------------------------
 
 -- $genericStruct
 --
@@ -198,6 +357,8 @@ decode p = deserializeValue p >=> unpinch
 -- of the @Generic@ typeclass and the @DataKinds@ extension is required to use
 -- type-level numerals.
 
+------------------------------------------------------------------------------
+
 -- $genericUnion
 --
 -- As with structs and exceptions, fields of the data type representing a
@@ -226,6 +387,8 @@ decode p = deserializeValue p >=> unpinch
 -- The @DeriveGeneric@ extension is required to automatically derive instances
 -- of the @Generic@ typeclass and the @DataKinds@ extension is required to use
 -- type-level numerals.
+
+------------------------------------------------------------------------------
 
 -- $genericEnum
 --
@@ -258,6 +421,8 @@ decode p = deserializeValue p >=> unpinch
 -- of the @Generic@ typeclass and the @DataKinds@ extension is required to use
 -- type-level numerals.
 
+------------------------------------------------------------------------------
+
 -- $struct
 --
 -- Given a Thrift struct,
@@ -276,7 +441,8 @@ decode p = deserializeValue p >=> unpinch
 --     }
 --
 -- instance 'Pinchable' Post where
---     type Tag Post = TStruct
+--     type 'Tag' Post = 'TStruct'
+--
 --     pinch (Post subject body) =
 --         'struct' [ 1 '?=' subject
 --                , 2 '.=' body
@@ -287,6 +453,8 @@ decode p = deserializeValue p >=> unpinch
 --              \<*\> value '.:'  2
 -- @
 --
+
+------------------------------------------------------------------------------
 
 -- $union
 --
@@ -312,9 +480,11 @@ decode p = deserializeValue p >=> unpinch
 --     pinch (PostBodyRtf rtfBody) =
 --         union 2 rtfBody
 --
---     unpinch v = PostBodyMarkdown <$> v .: 1
---             <|> PostBodyRtf      <$> v .: 2
+--     unpinch v = PostBodyMarkdown \<$\> v .: 1
+--             \<|\> PostBodyRtf      \<$\> v .: 2
 -- @
+
+------------------------------------------------------------------------------
 
 -- $enum
 --

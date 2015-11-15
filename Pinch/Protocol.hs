@@ -29,7 +29,7 @@ data Protocol = Protocol
     -- ^ Serializes a 'Value' into a ByteString builder.
     --
     -- Returns a @Builder@ and the total length of the serialized content.
-    , serializeMessage :: forall a. IsTType a => Message a -> (Int64, Builder)
+    , serializeMessage :: Message -> (Int64, Builder)
     -- ^ Serializes a 'Message' and its payload into a ByteString builder.
     --
     -- Returns a @Builder@ and the total length of the serialized content.
@@ -37,7 +37,6 @@ data Protocol = Protocol
     , deserializeValue
         :: forall a. IsTType a => ByteString -> Either String (Value a)
     -- ^ Reads a 'Value' from a ByteString.
-    , deserializeMessage
-        :: forall a. IsTType a => ByteString -> Either String (Message a)
+    , deserializeMessage :: ByteString -> Either String Message
     -- ^ Reads a 'Message' and its payload from a ByteString.
     }

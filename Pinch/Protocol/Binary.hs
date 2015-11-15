@@ -53,19 +53,18 @@ binaryProtocol = Protocol
 
 ------------------------------------------------------------------------------
 
-binarySerializeMessage :: Message a -> Build
+binarySerializeMessage :: Message -> Build
 binarySerializeMessage msg = do
     binarySerialize . VBinary . TE.encodeUtf8 $ messageName msg
     BB.int8  $ messageCode (messageType msg)
     BB.int32 $ messageId msg
-    binarySerialize (messageBody msg)
+    binarySerialize (messagePayload msg)
 
 
-binaryDeserializeMessage
-    :: IsTType a => ByteString -> Either String (Message a)
+binaryDeserializeMessage :: ByteString -> Either String Message
 binaryDeserializeMessage = runParser binaryMessageParser
 
-binaryMessageParser :: IsTType a => Parser (Message a)
+binaryMessageParser :: Parser Message
 binaryMessageParser = do
     size <- P.int32
     if size < 0

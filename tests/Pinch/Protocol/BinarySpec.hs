@@ -30,11 +30,11 @@ deserialize :: IsTType a => ByteString -> Either String (Value a)
 deserialize = deserializeValue binaryProtocol
 
 
-serializeMsg :: IsTType a => Message a -> ByteString
+serializeMsg :: Message -> ByteString
 serializeMsg =
     toStrict . BB.toLazyByteString . snd . serializeMessage binaryProtocol
 
-deserializeMsg :: IsTType a => ByteString -> Either String (Message a)
+deserializeMsg :: ByteString -> Either String Message
 deserializeMsg = deserializeMessage binaryProtocol
 
 
@@ -47,14 +47,14 @@ readWriteCases = mapM_ . uncurry $ \bytes value -> do
     serialize value `shouldBe` bs
 
 
-readWriteMessageCases :: IsTType a => [([Word8], Message a)] -> Expectation
+readWriteMessageCases :: [([Word8], Message)] -> Expectation
 readWriteMessageCases = mapM_ . uncurry $ \bytes msg -> do
     let bs = B.pack bytes
     deserializeMsg bs  `shouldBe` Right msg
     serializeMsg msg `shouldBe` bs
 
 
-readMessageCases :: IsTType a => [([Word8], Message a)] -> Expectation
+readMessageCases :: [([Word8], Message)] -> Expectation
 readMessageCases = mapM_ . uncurry $ \bytes msg ->
     deserializeMsg (B.pack bytes)  `shouldBe` Right msg
 
@@ -93,7 +93,7 @@ spec = describe "BinaryProtocol" $ do
     prop "can roundtrip values" $ \(SomeValue someVal) ->
         deserialize (serialize someVal) === Right someVal
 
-    prop "can roundtrip messages" $ \(msg :: Message TStruct) ->
+    prop "can roundtrip messages" $ \(msg :: Message) ->
         deserializeMsg (serializeMsg msg) == Right msg
 
     it "can read and write booleans" $ readWriteCases
