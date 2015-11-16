@@ -1,5 +1,5 @@
 name:                pinch
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            An alternative implementation of Thrift for Haskell.
 homepage:            https://github.com/abhinav/pinch
 license:             BSD3
