@@ -1,5 +1,3 @@
-`pinch`
-=======
 
 [![build-status]](https://travis-ci.org/abhinav/pinch)
 
