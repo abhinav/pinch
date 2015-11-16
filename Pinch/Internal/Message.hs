@@ -43,7 +43,7 @@ data MessageType
     -- Note: This message type is /not/ used for exceptions that are defined
     -- under the @throws@ clause of a method. Those exceptions are part of the
     -- response union of the method and are received in a @Reply@. This
-    -- message type is used to Thrift-level failures.
+    -- message type is used for Thrift-level failures.
     | Oneway
     -- ^ One-way call that expects no response.
   deriving (Show, Eq, Data, Typeable, Generic)

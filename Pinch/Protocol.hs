@@ -23,7 +23,7 @@ import Pinch.Internal.Message (Message)
 import Pinch.Internal.TType   (IsTType)
 import Pinch.Internal.Value   (Value)
 
--- | Defines a grouping of functions that together compose a Thrift protocol.
+-- | Protocols define a specific way to convert values into binary and back.
 data Protocol = Protocol
     { serializeValue   :: forall a. IsTType a => Value a -> (Int64, Builder)
     -- ^ Serializes a 'Value' into a ByteString builder.

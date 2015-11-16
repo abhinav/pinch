@@ -127,7 +127,7 @@ instance Hashable (TType a) where
 -- | Typeclass used to map type-leve TTypes into 'TType' objects. All TType
 -- tags are instances of this class.
 class Typeable a => IsTType a where
-    -- | Base on the context in which this is used, it will automatically
+    -- | Based on the context in which this is used, it will automatically
     -- return the corresponding 'TType' object.
     ttype :: TType a
 

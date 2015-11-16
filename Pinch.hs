@@ -108,9 +108,6 @@ module Pinch
 
     -- * Protocols
 
-    -- | Protocols define a specific way to convert values into binary and
-    -- back.
-
     , Protocol
     , binaryProtocol
 
@@ -393,10 +390,12 @@ getMessageBody = unpinch . messagePayload
 -- If the union represents the response of a service method which returns a
 -- @void@ result, the type 'Void' may be used.
 --
--- > data GetFooResponse
--- >   = GetFooDoesNotExist  (Field 1 FooDoesNotExist)
--- >   | GetFooInternalError (Field 2 InternalError)
--- >   | GetFooSuccess Void
+-- @
+-- data GetFooResponse
+--   = GetFooDoesNotExist  (Field 1 FooDoesNotExist)
+--   | GetFooInternalError (Field 2 InternalError)
+--   | GetFooSuccess 'Void'
+-- @
 
 ------------------------------------------------------------------------------
 
