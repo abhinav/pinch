@@ -42,7 +42,7 @@ library
                    , Pinch.Protocol
                    , Pinch.Protocol.Binary
                    , Pinch
-  ghc-options      : -Wall -Werror
+  ghc-options      : -Wall
   build-depends    : base                 >= 4.7  && < 4.9
 
                    , array                >= 0.5
@@ -59,7 +59,7 @@ library
 test-suite pinch-spec
   type             : exitcode-stdio-1.0
   hs-source-dirs   : tests
-  ghc-options      : -Wall -Werror
+  ghc-options      : -Wall
   main-is          : Spec.hs
   other-modules    : Pinch.Arbitrary
                    , Pinch.Expectations
