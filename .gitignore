@@ -1,4 +1,8 @@
-.cabal-sandbox/
-dist/
+*.swp
+*.hi
+*.o
+dist
 cabal.sandbox.config
+.cabal-sandbox
+gh-pages
 .stack-work

@@ -166,7 +166,7 @@ builderToStrict :: BB.Builder -> ByteString
 builderToStrict = toStrict . BB.toLazyByteString
 {-# INLINE  builderToStrict #-}
 
--- TODO we know the seize of the serialized payload. can probably pre-allocate
+-- TODO we know the size of the serialized payload. can probably pre-allocate
 -- the byte string before filling it with the contents of the builder.
 
 ------------------------------------------------------------------------------
