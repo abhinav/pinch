@@ -1,8 +1,13 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 module Main (main) where
+
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative
+#endif
 
 import Control.Monad
 import Control.Monad.Catch  (Exception, throwM)
