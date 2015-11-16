@@ -17,9 +17,9 @@
 
 #if __GLASGOW_HASKELL__ < 709
 {-# LANGUAGE OverlappingInstances       #-}
-#define OVERLAPPABLE
+#define OVERLAP
 #else
-#define OVERLAPPABLE {-# OVERLAPPABLE #-}
+#define OVERLAP {-# OVERLAPPABLE #-}
 #endif
 -- |
 -- Module      :  Pinch.Internal.Generic
@@ -73,7 +73,7 @@ instance Combinable TStruct where
     combine (VStruct as) (VStruct bs) = VStruct $ as `HM.union` bs
 
 
-instance OVERLAPPABLE GPinchable a => GPinchable (M1 i c a) where
+instance OVERLAP GPinchable a => GPinchable (M1 i c a) where
     type GTag (M1 i c a) = GTag a
     gPinch = gPinch . unM1
     gUnpinch = fmap M1 . gUnpinch
@@ -148,7 +148,7 @@ putField = Field
 field :: Functor f => (a -> f b) -> Field n a -> f (Field n b)
 field f (Field a) = Field <$> f a
 
-instance OVERLAPPABLE (Pinchable a, KnownNat n)
+instance OVERLAP (Pinchable a, KnownNat n)
   => GPinchable (K1 i (Field n a)) where
     type GTag (K1 i (Field n a)) = TStruct
     gPinch (K1 (Field a)) = struct [n .= a]
