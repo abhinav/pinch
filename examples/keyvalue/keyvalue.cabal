@@ -27,6 +27,7 @@ executable keyvalue-client
   build-depends       : base
                       , bytestring
                       , containers
+                      , exceptions
                       , http-client >= 0.4 && < 0.5
                       , http-types  >= 0.8 && < 0.9
                       , text

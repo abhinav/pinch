@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
 module Main (main) where
 
 import Data.ByteString.Lazy       (fromStrict, toStrict)
@@ -15,7 +16,7 @@ import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai        as HTTP
 import qualified Pinch              as P
 
-import Types
+import Types hiding (KeyValue (..))
 
 type ValueStore = IORef (Map Text Value)
 
@@ -55,23 +56,28 @@ app store request respond = do
     respondSuccess = respond . HTTP.responseLBS HTTP.status200 [] . fromStrict
     handleError err = respond $ HTTP.responseLBS HTTP.status500 [] (pack err)
 
+    handle
+        :: forall req res.
+            ( P.Pinchable req, P.Tag req ~ P.TStruct
+            , P.Pinchable res, P.Tag res ~ P.TStruct
+            )
+        => (ValueStore -> req -> IO res) -> P.Message
+        -> IO HTTP.ResponseReceived
+    handle f msg = case P.getMessageBody msg of
+        Left err -> handleError err
+        Right (req :: req) -> do
+            res <- f store req
+            respondSuccess . encode $
+                P.mkMessage messageName P.Reply messageId res
+      where
+        messageName = P.messageName msg
+        messageId = P.messageId msg
+
     handleMessage m = case P.messageName m of
-        "getValue" -> case P.getMessageBody m of
-            Left err -> handleError err
-            Right (req :: GetValueRequest) -> do
-                res <- getValue store req
-                let reply = P.mkMessage "getValue" P.Reply mid res
-                respondSuccess $ encode reply
-        "setValue" -> case P.getMessageBody m of
-            Left err -> handleError err
-            Right (req :: SetValueRequest) -> do
-                res <- setValue store req
-                let reply = P.mkMessage "setValue" P.Reply mid res
-                respondSuccess $ encode reply
+        "getValue" -> handle getValue m
+        "setValue" -> handle setValue m
         name -> handleError $ "Unknown method: " ++ show name
         -- TODO use TApplicationException format for this
-      where
-        mid = P.messageId m
 
 main :: IO ()
 main = newValueStore >>= \store -> run 8080 (app store)

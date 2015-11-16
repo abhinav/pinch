@@ -9,6 +9,8 @@ module Types
 
     , GetValueRequest(..)
     , GetValueResponse(..)
+
+    , KeyValue(..)
     ) where
 
 import Data.ByteString (ByteString)
@@ -59,3 +61,8 @@ data GetValueResponse
     deriving (Show, Ord, Eq, Generic)
 
 instance P.Pinchable GetValueResponse
+
+data KeyValue m = KeyValue
+    { getValue :: GetValueRequest -> m GetValueResponse
+    , setValue :: SetValueRequest -> m SetValueResponse
+    }
