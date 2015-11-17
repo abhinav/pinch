@@ -30,6 +30,8 @@ module Pinch
     -- * Pinchable
 
     , Pinchable(..)
+    , Parser
+    , runParser
 
     -- ** Automatically deriving instances
 
@@ -210,7 +212,7 @@ encode p = builderToStrict . snd . serializeValue p . pinch
 -- Right ["a","b"]
 --
 decode :: Pinchable a => Protocol -> ByteString -> Either String a
-decode p = deserializeValue p >=> unpinch
+decode p = deserializeValue p >=> runParser . unpinch
 {-# INLINE decode #-}
 
 ------------------------------------------------------------------------------
@@ -323,7 +325,7 @@ mkMessage name typ mid body = Message name typ mid (pinch body)
 -- requested type.
 getMessageBody
     :: (Pinchable a, Tag a ~ TStruct) => Message -> Either String a
-getMessageBody = unpinch . messagePayload
+getMessageBody = runParser . unpinch . messagePayload
 {-# INLINE getMessageBody #-}
 
 ------------------------------------------------------------------------------

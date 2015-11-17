@@ -1,5 +1,5 @@
 name:                pinch
-version:             0.1.0.1
+version:             0.2.0.0
 synopsis:            An alternative implementation of Thrift for Haskell.
 homepage:            https://github.com/abhinav/pinch
 license:             BSD3
@@ -37,6 +37,7 @@ library
                    , Pinch.Internal.Message
                    , Pinch.Internal.Parser
                    , Pinch.Internal.Pinchable
+                   , Pinch.Internal.Pinchable.Parser
                    , Pinch.Internal.TType
                    , Pinch.Internal.Value
                    , Pinch.Protocol

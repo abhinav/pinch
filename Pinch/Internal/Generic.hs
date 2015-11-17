@@ -83,9 +83,10 @@ instance OVERLAP GPinchable a => GPinchable (M1 i c a) where
 instance (Datatype d, GPinchable a) => GPinchable (D1 d a) where
     type GTag (D1 d a) = GTag a
     gPinch = gPinch . unM1
-    gUnpinch v = case gUnpinch v of
-        Left msg -> Left $ "Failed to read '" ++ name ++ "': " ++ msg
-        Right a -> Right $ M1 a
+    gUnpinch v =
+        parserCatch (gUnpinch v)
+            (\msg -> fail $ "Failed to read '" ++ name ++ "': " ++ msg)
+            (return . M1)
       where
         name = datatypeName (undefined :: D1 d a b)
 
@@ -197,10 +198,10 @@ instance KnownNat n => GPinchable (K1 i (Enumeration n)) where
     gPinch (K1 Enumeration) = VInt32 . fromIntegral $ natVal (Proxy :: Proxy n)
     gUnpinch (VInt32 i)
         | i == val  = return (K1 Enumeration)
-        | otherwise = Left $ "Couldn't match enum value " ++ show i
+        | otherwise = fail $ "Couldn't match enum value " ++ show i
       where
         val = fromIntegral $ natVal (Proxy :: Proxy n)
-    gUnpinch x = Left $ "Failed to read enum. Got " ++ show x
+    gUnpinch x = fail $ "Failed to read enum. Got " ++ show x
 
 ------------------------------------------------------------------------------
 
@@ -234,6 +235,6 @@ instance GPinchable (K1 i Void) where
     gPinch (K1 Void) = struct []
 
     -- If the map isn't empty, there's probably an exception in there.
-    gUnpinch (VStruct m) | HM.null m = Right $ K1 Void
-    gUnpinch x = Left $
+    gUnpinch (VStruct m) | HM.null m = return $ K1 Void
+    gUnpinch x = fail $
         "Failed to read response. Expected void, got: " ++ show x

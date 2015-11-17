@@ -22,6 +22,8 @@ import qualified Pinch.Internal.Pinchable as P
 import qualified Pinch.Internal.TType     as T
 import qualified Pinch.Internal.Value     as V
 
+unpinch' :: P.Pinchable a => V.Value (P.Tag a) -> Either String a
+unpinch' = P.runParser . P.unpinch
 
 data AnEnum
     = EnumA (G.Enumeration 1)
@@ -40,12 +42,12 @@ enumSpec = describe "Enum" $ do
         P.pinch (EnumB G.enum) `shouldBe` vi32 2
         P.pinch (EnumC G.enum) `shouldBe` vi32 3
 
-        P.unpinch (vi32 1) `shouldBe` Right (EnumA G.enum)
-        P.unpinch (vi32 2) `shouldBe` Right (EnumB G.enum)
-        P.unpinch (vi32 3) `shouldBe` Right (EnumC G.enum)
+        unpinch' (vi32 1) `shouldBe` Right (EnumA G.enum)
+        unpinch' (vi32 2) `shouldBe` Right (EnumB G.enum)
+        unpinch' (vi32 3) `shouldBe` Right (EnumC G.enum)
 
     it "reject invalid values" $
-        (P.unpinch :: V.Value T.TInt32 -> Either String AnEnum)
+        (unpinch' :: V.Value T.TInt32 -> Either String AnEnum)
           (vi32 4) `leftShouldContain` "Couldn't match enum value 4"
 
 data AUnion
@@ -93,41 +95,41 @@ unionSpec = describe "Union" $ do
         P.pinch (UnionVoid G.Void) `shouldBe` vstruct []
 
     it "can unpinch" $ do
-        P.unpinch (vstruct [(1, vdub_ 12.34)])
+        unpinch' (vstruct [(1, vdub_ 12.34)])
             `shouldBe` Right (UnionDouble $ G.putField 12.34)
 
-        P.unpinch (vstruct [(2, vbyt_ 123)])
+        unpinch' (vstruct [(2, vbyt_ 123)])
             `shouldBe` Right (UnionByte $ G.putField 123)
 
-        P.unpinch
+        unpinch'
             (vstruct [(5, vset_ [vi32 1, vi32 2])])
             `shouldBe` Right
                 (UnionSet . G.putField . S.fromList
                     $ [EnumA G.enum, EnumB G.enum])
 
-        P.unpinch (vstruct [(1, vbyt_ 42)])
+        unpinch' (vstruct [(1, vbyt_ 42)])
             `shouldBe` Right (UnionVoidBefore $ G.putField 42)
 
-        P.unpinch (vstruct [(2, vbin_ "foo")])
+        unpinch' (vstruct [(2, vbin_ "foo")])
             `shouldBe` Right (UnionVoidAfter $ G.putField "foo")
 
-        P.unpinch (vstruct []) `shouldBe` Right (UnionVoid G.Void)
+        unpinch' (vstruct []) `shouldBe` Right (UnionVoid G.Void)
 
     it "reject invalid types" $ do
-        (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
+        (unpinch' :: V.Value T.TUnion -> Either String AUnion)
           (vstruct [(1, vi32_ 1)])
             `leftShouldContain` "is absent"
 
-        (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
+        (unpinch' :: V.Value T.TUnion -> Either String AUnion)
           (vstruct [(2, vbool_ True)])
             `leftShouldContain` "is absent"
 
-        (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
+        (unpinch' :: V.Value T.TUnion -> Either String AUnion)
           (vstruct [(5, vlist_ [vi32 1, vi32 2])])
             `leftShouldContain` "has the incorrect type"
 
     it "reject invalid IDs" $
-        (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
+        (unpinch' :: V.Value T.TUnion -> Either String AUnion)
           (vstruct [(3, vdub_ 1.0)])
             `leftShouldContain` "is absent"
 
@@ -151,11 +153,11 @@ structSpec = describe "Struct" $ do
                 , (5, vi32_ 42)
                 ]
 
-        P.unpinch (vstruct [(1, vbin_ "hello")])
+        unpinch' (vstruct [(1, vbin_ "hello")])
             `shouldBe` Right
                 (AStruct (G.putField "hello") (G.putField Nothing))
 
-        P.unpinch
+        unpinch'
           (vstruct
             [ (1, vbin_ "hello")
             , (5, vi32_ 42)
@@ -163,14 +165,14 @@ structSpec = describe "Struct" $ do
                 Right (AStruct (G.putField "hello") (G.putField $ Just 42))
 
     it "ignores unrecognized fields" $ do
-        P.unpinch
+        unpinch'
           (vstruct
             [ (1, vbin_ "foo")
             , (2, vi32_ 42)
             ]) `shouldBe`
                 Right (AStruct (G.putField "foo") (G.putField Nothing))
 
-        P.unpinch
+        unpinch'
           (vstruct
             [ (1, vbin_ "foo")
             , (4, vbyt_ 12)
@@ -179,14 +181,14 @@ structSpec = describe "Struct" $ do
                 Right (AStruct (G.putField "foo") (G.putField $ Just 34))
 
     it "rejects missing required fields" $
-        (P.unpinch :: V.Value T.TStruct -> Either String AStruct)
+        (unpinch' :: V.Value T.TStruct -> Either String AStruct)
           (vstruct
             [ (4, vbyt_ 12)
             , (5, vi32_ 34)
             ]) `leftShouldContain` "1 is absent"
 
     it "rejects invalid types" $
-        (P.unpinch :: V.Value T.TStruct -> Either String AStruct)
+        (unpinch' :: V.Value T.TStruct -> Either String AStruct)
           (vstruct
             [ (1, vlist_ [vi32 42])
             ]) `leftShouldContain` "has the incorrect type"

@@ -43,10 +43,13 @@ instance P.Pinchable AnEnum where
     pinch EnumC = P.pinch (3 :: Int32)
 
     unpinch = P.unpinch >=> \v -> case (v :: Int32) of
-        1 -> Right EnumA
-        2 -> Right EnumB
-        3 -> Right EnumC
-        _ -> Left "Unknown enum value"
+        1 -> return EnumA
+        2 -> return EnumB
+        3 -> return EnumC
+        _ -> fail "Unknown enum value"
+
+unpinch' :: P.Pinchable a => V.Value (P.Tag a) -> Either String a
+unpinch' = P.runParser . P.unpinch
 
 enumSpec :: Spec
 enumSpec = describe "Enum" $ do
@@ -56,12 +59,12 @@ enumSpec = describe "Enum" $ do
         P.pinch EnumB `shouldBe` vi32 2
         P.pinch EnumC `shouldBe` vi32 3
 
-        P.unpinch (vi32 1) `shouldBe` Right EnumA
-        P.unpinch (vi32 2) `shouldBe` Right EnumB
-        P.unpinch (vi32 3) `shouldBe` Right EnumC
+        unpinch' (vi32 1) `shouldBe` Right EnumA
+        unpinch' (vi32 2) `shouldBe` Right EnumB
+        unpinch' (vi32 3) `shouldBe` Right EnumC
 
     it "reject invalid values" $
-        P.unpinch (vi32 4) `shouldBe`
+        unpinch' (vi32 4) `shouldBe`
             (Left "Unknown enum value" :: Either String AnEnum)
 
 
@@ -99,31 +102,31 @@ unionSpec = describe "Union" $ do
             vstruct [(5, vset_ [vi32 1, vi32 2])]
 
     it "can unpinch" $ do
-        P.unpinch (vstruct [(1, vdub_ 12.34)])
+        unpinch' (vstruct [(1, vdub_ 12.34)])
             `shouldBe` Right (UnionDouble 12.34)
 
-        P.unpinch (vstruct [(2, vbyt_ 123)])
+        unpinch' (vstruct [(2, vbyt_ 123)])
             `shouldBe` Right (UnionByte 123)
 
-        P.unpinch
+        unpinch'
             (vstruct [(5, vset_ [vi32 1, vi32 2])])
             `shouldBe` Right (UnionSet $ S.fromList [EnumA, EnumB])
 
     it "reject invalid types" $ do
-        (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
+        (unpinch' :: V.Value T.TUnion -> Either String AUnion)
           (vstruct [(1, vi32_ 1)])
             `leftShouldContain` "is absent"
 
-        (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
+        (unpinch' :: V.Value T.TUnion -> Either String AUnion)
           (vstruct [(2, vbool_ True)])
             `leftShouldContain` "is absent"
 
-        (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
+        (unpinch' :: V.Value T.TUnion -> Either String AUnion)
           (vstruct [(5, vlist_ [vi32 1, vi32 2])])
             `leftShouldContain` "has the incorrect type"
 
     it "reject invalid IDs" $
-        (P.unpinch :: V.Value T.TUnion -> Either String AUnion)
+        (unpinch' :: V.Value T.TUnion -> Either String AUnion)
           (vstruct [(3, vdub_ 1.0)])
             `leftShouldContain` "is absent"
 
@@ -150,23 +153,23 @@ structSpec = describe "Struct" $ do
                 , (5, vi32_ 42)
                 ]
 
-        P.unpinch (vstruct [(1, vbin_ "hello")])
+        unpinch' (vstruct [(1, vbin_ "hello")])
             `shouldBe` Right (AStruct "hello" Nothing)
 
-        P.unpinch
+        unpinch'
           (vstruct
             [ (1, vbin_ "hello")
             , (5, vi32_ 42)
             ]) `shouldBe` Right (AStruct "hello" (Just 42))
 
     it "ignores unrecognized fields" $ do
-        P.unpinch
+        unpinch'
           (vstruct
             [ (1, vbin_ "foo")
             , (2, vi32_ 42)
             ]) `shouldBe` Right (AStruct "foo" Nothing)
 
-        P.unpinch
+        unpinch'
           (vstruct
             [ (1, vbin_ "foo")
             , (4, vbyt_ 12)
@@ -174,14 +177,14 @@ structSpec = describe "Struct" $ do
             ]) `shouldBe` Right (AStruct "foo" (Just 34))
 
     it "rejects missing required fields" $
-        (P.unpinch :: V.Value T.TStruct -> Either String AStruct)
+        (unpinch' :: V.Value T.TStruct -> Either String AStruct)
           (vstruct
             [ (4, vbyt_ 12)
             , (5, vi32_ 34)
             ]) `leftShouldContain` "1 is absent"
 
     it "rejects invalid types" $
-        (P.unpinch :: V.Value T.TStruct -> Either String AStruct)
+        (unpinch' :: V.Value T.TStruct -> Either String AStruct)
           (vstruct
             [ (1, vlist_ [vi32 42])
             ]) `leftShouldContain` "has the incorrect type"
@@ -194,34 +197,34 @@ primitivesSpec = do
         P.pinch True `shouldBe` vbool True
         P.pinch False `shouldBe` vbool False
 
-        P.unpinch (vbool True) `shouldBe` Right True
-        P.unpinch (vbool False) `shouldBe` Right False
+        unpinch' (vbool True) `shouldBe` Right True
+        unpinch' (vbool False) `shouldBe` Right False
 
     prop "can pinch and unpinch Int8" $ \i -> do
         P.pinch i `shouldBe` vbyt i
-        P.unpinch (vbyt i) `shouldBe` Right i
+        unpinch' (vbyt i) `shouldBe` Right i
 
     prop "can pinch and unpinch Int32" $ \i -> do
         P.pinch i `shouldBe` vi32 i
-        P.unpinch (vi32 i) `shouldBe` Right i
+        unpinch' (vi32 i) `shouldBe` Right i
 
     prop "can pinch and unpinch Int64" $ \i -> do
         P.pinch i `shouldBe` vi64 i
-        P.unpinch (vi64 i) `shouldBe` Right i
+        unpinch' (vi64 i) `shouldBe` Right i
 
     prop "can pinch and unpinch Double" $ \d -> do
         P.pinch d `shouldBe` vdub d
-        P.unpinch (vdub d) `shouldBe` Right d
+        unpinch' (vdub d) `shouldBe` Right d
 
     prop "can pinch and unpinch ByteString" $ \(SomeByteString bs) -> do
         P.pinch bs `shouldBe` vbin bs
-        P.unpinch (vbin bs) `shouldBe` Right bs
+        unpinch' (vbin bs) `shouldBe` Right bs
 
     it "can pinch and unpinch Text" $ do
         P.pinch ("☕️" :: Text)
             `shouldBe` vbin (B.pack [0xe2, 0x98, 0x95, 0xef, 0xb8, 0x8f])
 
-        P.unpinch (vbin (B.pack [0xe2, 0x98, 0x95, 0xef, 0xb8, 0x8f]))
+        unpinch' (vbin (B.pack [0xe2, 0x98, 0x95, 0xef, 0xb8, 0x8f]))
             `shouldBe` Right ("☕️" :: Text)
 
 
@@ -234,11 +237,11 @@ containerSpec = do
             P.pinch (Vec.fromList [1, 2, 3 :: Int32])
                 `shouldBe` vlist [vi32 1, vi32 2, vi32 3]
 
-            P.unpinch (vlist [vi32 1, vi32 2, vi32 3])
+            unpinch' (vlist [vi32 1, vi32 2, vi32 3])
                 `shouldBe` Right (Vec.fromList [1, 2, 3 :: Int32])
 
         it "rejects type mismatch" $
-          (P.unpinch :: V.Value T.TList -> Either String (Vector Int8))
+          (unpinch' :: V.Value T.TList -> Either String (Vector Int8))
             (vlist [vi32 1, vi32 2, vi32 3])
                 `leftShouldContainAll`
                     ["Type mismatch", "Expected TByte", "Got TInt32"]
@@ -250,11 +253,11 @@ containerSpec = do
             P.pinch ([1, 2, 3] :: [Int32])
                 `shouldBe` vlist [vi32 1, vi32 2, vi32 3]
 
-            P.unpinch (vlist [vi32 1, vi32 2, vi32 3])
+            unpinch' (vlist [vi32 1, vi32 2, vi32 3])
                 `shouldBe` Right ([1, 2, 3] :: [Int32])
 
         it "rejects type mismatch" $
-          (P.unpinch :: V.Value T.TList -> Either String [Int8])
+          (unpinch' :: V.Value T.TList -> Either String [Int8])
             (vlist [vi32 1, vi32 2, vi32 3])
                 `leftShouldContain` "Type mismatch"
 
@@ -264,11 +267,11 @@ containerSpec = do
             P.pinch (HS.fromList [1, 2, 3 :: Int32])
                 `shouldBe` vset [vi32 1, vi32 2, vi32 3]
 
-            P.unpinch (vset [vi32 1, vi32 2, vi32 3])
+            unpinch' (vset [vi32 1, vi32 2, vi32 3])
                 `shouldBe` Right (HS.fromList [1, 2, 3 :: Int32])
 
         it "rejects type mismatch" $
-          (P.unpinch :: V.Value T.TSet -> Either String (HashSet Int8))
+          (unpinch' :: V.Value T.TSet -> Either String (HashSet Int8))
             (vset [vi32 1, vi32 2, vi32 3])
                 `leftShouldContain` "Type mismatch"
 
@@ -278,11 +281,11 @@ containerSpec = do
             P.pinch (S.fromList [1, 2, 3 :: Int32])
                 `shouldBe` vset [vi32 1, vi32 2, vi32 3]
 
-            P.unpinch (vset [vi32 1, vi32 2, vi32 3])
+            unpinch' (vset [vi32 1, vi32 2, vi32 3])
                 `shouldBe` Right (S.fromList [1, 2, 3 :: Int32])
 
         it "rejects type mismatch" $
-          (P.unpinch :: V.Value T.TSet -> Either String (Set Int8))
+          (unpinch' :: V.Value T.TSet -> Either String (Set Int8))
             (vset [vi32 1, vi32 2, vi32 3])
                 `leftShouldContain` "Type mismatch"
 
@@ -296,7 +299,7 @@ containerSpec = do
                     , (vbin "b", vi16 2)
                     ]
 
-            P.unpinch
+            unpinch'
               (vmap [ (vbin "a", vi16 1)
                       , (vbin "b", vi16 2)
                       ]) `shouldBe`
@@ -305,12 +308,12 @@ containerSpec = do
                             [("a", 1), ("b", 2) :: (ByteString, Int16)])
 
         it "rejects key type mismatch" $
-          (P.unpinch :: V.Value T.TMap -> Either String (HashMap Int32 Int16))
+          (unpinch' :: V.Value T.TMap -> Either String (HashMap Int32 Int16))
               (vmap [(vbin "a", vi16 1)])
                   `leftShouldContain` "Type mismatch"
 
         it "rejects value type mismatch" $
-          (P.unpinch :: V.Value T.TMap -> Either String (HashMap ByteString Bool))
+          (unpinch' :: V.Value T.TMap -> Either String (HashMap ByteString Bool))
               (vmap [(vbin "a", vi16 1)])
                   `leftShouldContain` "Type mismatch"
 
@@ -324,7 +327,7 @@ containerSpec = do
                     , (vbin "b", vi16 2)
                     ]
 
-            P.unpinch
+            unpinch'
               (vmap [ (vbin "a", vi16 1)
                       , (vbin "b", vi16 2)
                       ]) `shouldBe`
@@ -333,12 +336,12 @@ containerSpec = do
                             [("a", 1), ("b", 2) :: (ByteString, Int16)])
 
         it "rejects key type mismatch" $
-          (P.unpinch :: V.Value T.TMap -> Either String (Map Int32 Int16))
+          (unpinch' :: V.Value T.TMap -> Either String (Map Int32 Int16))
               (vmap [(vbin "a", vi16 1)])
                   `leftShouldContain` "Type mismatch"
 
         it "rejects value type mismatch" $
-          (P.unpinch :: V.Value T.TMap -> Either String (Map ByteString Bool))
+          (unpinch' :: V.Value T.TMap -> Either String (Map ByteString Bool))
               (vmap [(vbin "a", vi16 1)])
                   `leftShouldContain` "Type mismatch"
 
