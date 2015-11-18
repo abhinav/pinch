@@ -49,7 +49,7 @@ import Data.Hashable       (Hashable)
 import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int64, Int8)
 import Data.Text           (Text)
-import Data.Typeable       ((:~:) (..), eqT)
+import Data.Typeable       ((:~:) (..))
 import Data.Vector         (Vector)
 import GHC.Generics        (Generic, Rep)
 
@@ -161,16 +161,15 @@ union k v = VStruct (HM.singleton k (SomeValue $ pinch v))
 -- it's not the same type as expected by this call's context.
 (.:) :: forall a. Pinchable a => Value TStruct -> Int16 -> Parser a
 (VStruct items) .: fieldId = do
-    someValue <- note ("Field " ++ show fieldId ++ " is absent.")
+    SomeValue someValue <- note ("Field " ++ show fieldId ++ " is absent.")
                $ fieldId `HM.lookup` items
     (value :: Value (Tag a)) <-
         note ("Field " ++ show fieldId ++ " has the incorrect type. " ++
               "Expected '" ++ show (ttype :: TType (Tag a)) ++ "' but " ++
-              "got '" ++ showSomeValueTType someValue ++ "'")
+              "got '" ++ show (valueTType someValue) ++ "'")
           $ castValue someValue
     unpinch value
   where
-    showSomeValueTType (SomeValue v) = show (valueTType v)
     note msg m = case m of
         Nothing -> fail msg
         Just v -> return v
@@ -187,7 +186,7 @@ union k v = VStruct (HM.singleton k (SomeValue $ pinch v))
         Just v  -> Just <$> unpinch v
   where
     value :: Maybe (Value (Tag a))
-    value = fieldId `HM.lookup` items >>= castValue
+    value = fieldId `HM.lookup` items >>= \(SomeValue v) -> castValue v
 
 ------------------------------------------------------------------------------
 
@@ -195,7 +194,7 @@ union k v = VStruct (HM.singleton k (SomeValue $ pinch v))
 checkedUnpinch
     :: forall a b. (Pinchable a, IsTType b)
     => Value b -> Parser a
-checkedUnpinch = case eqT of
+checkedUnpinch = case eqTType of
     Nothing -> const . fail $
         "Type mismatch. Expected " ++ show ttypeA ++ ". Got " ++ show ttypeB
     Just (Refl :: Tag a :~: b) -> unpinch

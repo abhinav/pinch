@@ -1,7 +1,9 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE RankNTypes         #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE TypeOperators       #-}
 -- |
 -- Module      :  Pinch.Internal.TType
 -- Copyright   :  (c) Abhinav Gupta 2015
@@ -19,6 +21,9 @@ module Pinch.Internal.TType
       TType(..)
     , IsTType(..)
     , SomeTType(..)
+
+    , ttypeIsEqual
+    , eqTType
 
     -- * Tags
 
@@ -40,7 +45,8 @@ module Pinch.Internal.TType
     ) where
 
 import Data.Hashable (Hashable (..))
-import Data.Typeable (Typeable)
+import Data.Typeable ((:~:) (..), Typeable)
+import Unsafe.Coerce (unsafeCoerce)
 
 -- | > bool
 data TBool   deriving (Typeable)
@@ -153,3 +159,18 @@ data SomeTType where
   deriving Typeable
 
 deriving instance Show SomeTType
+
+-- | Checks if two TType values are equal.
+ttypeIsEqual :: TType a -> TType b -> Bool
+ttypeIsEqual a b = a == unsafeCoerce b
+{-# INLINE ttypeIsEqual #-}
+
+-- | Witness the equality of two TTypes.
+--
+-- This is similar to @Data.Typeable.eqT@ except it's faster for TType
+-- comparison.
+eqTType :: forall a b. (IsTType a, IsTType b) => Maybe (a :~: b)
+eqTType =
+    if (ttype :: TType a) `ttypeIsEqual` (ttype :: TType b)
+        then Just (unsafeCoerce Refl)
+        else Nothing

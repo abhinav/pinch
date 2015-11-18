@@ -3,6 +3,8 @@
 
 -   Breaking: `unpinch` no longer returns `Either String a`. Instead it returns
     a `Parser a`.
+-   Improve deserialization performance significantly by getting rid of calls
+    to `Data.Typeable.{eqT, cast}`.
 
 0.1.0.1
 =======

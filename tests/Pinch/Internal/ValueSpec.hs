@@ -14,5 +14,5 @@ spec = describe "Value" $ do
     prop "is equal to itself" $ \(V.SomeValue v) ->
         v === v
 
-    prop "can be cast via SomeValue" $ \(V.SomeValue v) ->
-        V.castValue (V.SomeValue v) === Just v
+    prop "can be cast" $ \(V.SomeValue v) ->
+        V.castValue v === Just v

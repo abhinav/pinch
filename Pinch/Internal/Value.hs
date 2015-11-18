@@ -26,7 +26,7 @@ import Data.Hashable       (Hashable (..))
 import Data.HashMap.Strict (HashMap)
 import Data.HashSet        (HashSet)
 import Data.Int            (Int16, Int32, Int64, Int8)
-import Data.Typeable       ((:~:) (..), Typeable, cast, eqT)
+import Data.Typeable       ((:~:) (..), Typeable)
 import Data.Vector         (Vector)
 
 import qualified Data.HashMap.Strict as M
@@ -72,9 +72,9 @@ instance Eq (Value a) where
     VBinary a == VBinary b = a == b
     VStruct a == VStruct b = a == b
 
-    VMap  as == VMap  bs = areEqual as bs
-    VSet  as == VSet  bs = areEqual as bs
-    VList as == VList bs = areEqual as bs
+    VMap  as == VMap  bs = areEqual2 as bs
+    VSet  as == VSet  bs = areEqual1 as bs
+    VList as == VList bs = areEqual1 as bs
 
     _ == _ = False
 
@@ -107,23 +107,44 @@ instance Eq SomeValue where
 instance NFData SomeValue where
     rnf (SomeValue a) = rnf a
 
--- | Safely attempt to cast 'SomeValue' into a 'Value'.
-castValue :: Typeable a => SomeValue -> Maybe (Value a)
-castValue (SomeValue v) = cast v
-
+-- | Safely attempt to cast a Value into another.
+castValue :: forall a b. (IsTType a, IsTType b) => Value a -> Maybe (Value b)
+castValue v = case eqTType of
+    Just (Refl :: a :~: b) -> Just v
+    Nothing -> Nothing
+{-# INLINE castValue #-}
 
 -- | Get the 'TType' of a 'Value'.
 valueTType :: IsTType a => Value a -> TType a
 valueTType _ = ttype
 
--- | Helper to compare two types that are not known to be equal at compile
--- time.
 areEqual
-    :: forall a b. (Typeable a, Typeable b, Eq a) => a -> b -> Bool
-areEqual x y = case eqT of
+    :: forall a b. (IsTType a, IsTType b) => Value a -> Value b -> Bool
+areEqual l r = case eqTType of
+    Just (Refl :: a :~: b) -> l == r
     Nothing -> False
-    Just (Refl :: a :~: b) -> x == y
+{-# INLINE areEqual #-}
 
+-- | Helper to compare Values inside a container.
+areEqual1
+    :: forall f a b. (IsTType a, IsTType b, Eq (f (Value a)))
+    => f (Value a) -> f (Value b) -> Bool
+areEqual1 l r = case eqTType of
+    Just (Refl :: a :~: b) -> l == r
+    Nothing -> False
+{-# INLINE areEqual1 #-}
+
+areEqual2
+    :: forall f k1 v1 k2 v2.
+        ( IsTType k1, IsTType v1, IsTType k2, IsTType v2
+        , Eq (f (Value k1) (Value v1))
+        ) => f (Value k1) (Value v1) -> f (Value k2) (Value v2) -> Bool
+areEqual2 l r = case eqTType of
+    Just (Refl :: k1 :~: k2) -> case eqTType of
+        Just (Refl :: v1 :~: v2) -> l == r
+        Nothing -> False
+    Nothing -> False
+{-# INLINE areEqual2 #-}
 
 instance Hashable (Value a) where
     hashWithSalt s a = case a of
