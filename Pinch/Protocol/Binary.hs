@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -21,15 +22,11 @@ import Control.Monad
 import Data.Bits           (shiftR, (.&.))
 import Data.ByteString     (ByteString)
 import Data.HashMap.Strict (HashMap)
-import Data.HashSet        (HashSet)
-import Data.Int            (Int16, Int8)
-import Data.Vector         (Vector)
+import Data.Int            (Int16, Int32, Int8)
 
 import qualified Data.ByteString     as B
 import qualified Data.HashMap.Strict as M
-import qualified Data.HashSet        as S
 import qualified Data.Text.Encoding  as TE
-import qualified Data.Vector         as V
 
 import Pinch.Internal.Builder (Build)
 import Pinch.Internal.Message
@@ -38,8 +35,9 @@ import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol         (Protocol (..))
 
-import qualified Pinch.Internal.Builder as BB
-import qualified Pinch.Internal.Parser  as P
+import qualified Pinch.Internal.Builder  as BB
+import qualified Pinch.Internal.FoldList as FL
+import qualified Pinch.Internal.Parser   as P
 
 
 -- | Provides an implementation of the Thrift Binary Protocol.
@@ -159,10 +157,10 @@ parseMap = do
 
     case (ktype', vtype') of
       (SomeTType ktype, SomeTType vtype) -> do
-        pairs <- replicateM (fromIntegral count) $
-            (,) <$> binaryParser ktype
-                <*> binaryParser vtype
-        return $ VMap (M.fromList pairs)
+        items <- FL.replicateM (fromIntegral count) $
+            MapItem <$> binaryParser ktype
+                    <*> binaryParser vtype
+        return $ VMap items
 
 
 parseSet :: Parser (Value TSet)
@@ -171,9 +169,8 @@ parseSet = do
     count <- P.int32
 
     case vtype' of
-      SomeTType vtype -> do
-          items <- replicateM (fromIntegral count) (binaryParser vtype)
-          return $ VSet (S.fromList items)
+      SomeTType vtype ->
+          VSet <$> FL.replicateM (fromIntegral count) (binaryParser vtype)
 
 
 parseList :: Parser (Value TList)
@@ -183,7 +180,7 @@ parseList = do
 
     case vtype' of
       SomeTType vtype ->
-        VList <$> V.replicateM (fromIntegral count) (binaryParser vtype)
+        VList <$> FL.replicateM (fromIntegral count) (binaryParser vtype)
 
 
 parseStruct :: Parser (Value TStruct)
@@ -216,7 +213,7 @@ binarySerialize v0 = case v0 of
   VStruct xs -> serializeStruct xs
   VList   xs -> serializeList ttype       xs
   VMap    xs -> serializeMap  ttype ttype xs
-  VSet    xs -> serializeSet  ttype       xs
+  VSet    xs -> serializeList ttype       xs
 
 
 serializeStruct :: HashMap Int16 SomeValue -> Build
@@ -232,28 +229,24 @@ serializeStruct fields = do
         binarySerialize fieldValue
 
 
-serializeList :: TType a -> Vector (Value a) -> Build
+serializeList :: TType a -> FL.FoldList (Value a) -> Build
 serializeList vtype xs = do
     BB.int8  $ toTypeCode vtype
-    BB.int32 $ fromIntegral (V.length xs)
-    mapM_ binarySerialize (V.toList xs)
+    let go (prev, !c) item = (prev >> binarySerialize item, c + 1)
+        (write, size) = FL.foldl' go (return (), 0 :: Int32) xs
+    BB.int32 size
+    write
 
 
-serializeMap :: TType k -> TType v -> HashMap (Value k) (Value v) -> Build
+serializeMap :: TType k -> TType v -> FL.FoldList (MapItem k v) -> Build
 serializeMap kt vt xs = do
     BB.int8  $ toTypeCode kt
     BB.int8  $ toTypeCode vt
-    BB.int32 $ fromIntegral (M.size xs)
-    forM_ (M.toList xs) $ \(k, v) -> do
-        binarySerialize k
-        binarySerialize v
-
-
-serializeSet :: TType a -> HashSet (Value a) -> Build
-serializeSet vtype xs = do
-    BB.int8  $ toTypeCode vtype
-    BB.int32 $ fromIntegral (S.size xs)
-    mapM_ binarySerialize (S.toList xs)
+    let go (prev, !c) (MapItem k v) =
+           (prev >> binarySerialize k >> binarySerialize v, c + 1)
+        (write, size) = FL.foldl' go (return (), 0 :: Int32) xs
+    BB.int32 size
+    write
 
 
 ------------------------------------------------------------------------------

@@ -5,6 +5,8 @@
     a `Parser a`.
 -   Improve deserialization performance significantly by getting rid of calls
     to `Data.Typeable.{eqT, cast}`.
+-   Improve performance further by changing the underlying representation of
+    lists, sets, and maps.
 
 0.1.0.1
 =======

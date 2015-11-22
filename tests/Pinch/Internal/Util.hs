@@ -29,11 +29,11 @@ import Data.ByteString (ByteString)
 import Data.Int
 
 import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet        as HS
-import qualified Data.Vector         as V
 
 import Pinch.Internal.TType
 import Pinch.Internal.Value
+
+import qualified Pinch.Internal.FoldList as FL
 
 vsome :: IsTType a => Value a -> SomeValue
 vsome = SomeValue
@@ -75,13 +75,13 @@ vstruct :: [(Int16, SomeValue)] -> Value TStruct
 vstruct = VStruct . HM.fromList
 
 vset :: IsTType a => [Value a] -> Value TSet
-vset = VSet . HS.fromList
+vset = VSet . FL.fromFoldable
 
 vlist :: IsTType a => [Value a] -> Value TList
-vlist = VList . V.fromList
+vlist = VList . FL.fromFoldable
 
 vmap :: (IsTType k, IsTType v) => [(Value k, Value v)] -> Value TMap
-vmap = VMap . HM.fromList
+vmap = VMap . FL.fromFoldable . map (uncurry MapItem)
 
 vdub :: Double -> Value TDouble
 vdub = VDouble

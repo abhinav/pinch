@@ -1,9 +1,11 @@
+{-# LANGUAGE BangPatterns         #-}
 {-# LANGUAGE CPP                  #-}
 {-# LANGUAGE DefaultSignatures    #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE KindSignatures       #-}
+{-# LANGUAGE RankNTypes           #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeOperators        #-}
@@ -47,8 +49,8 @@ import Control.Applicative
 import Data.ByteString      (ByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.Hashable        (Hashable)
-import Data.HashMap.Strict  (HashMap)
 import Data.Int             (Int16, Int32, Int64, Int8)
+import Data.List            (foldl')
 import Data.Text            (Text)
 import Data.Typeable        ((:~:) (..))
 import Data.Vector          (Vector)
@@ -67,6 +69,8 @@ import qualified GHC.Generics            as G
 import Pinch.Internal.Pinchable.Parser
 import Pinch.Internal.TType
 import Pinch.Internal.Value
+
+import qualified Pinch.Internal.FoldList as FL
 
 -- | Implementation of 'pinch' based on 'GPinchable'.
 genericPinch
@@ -147,10 +151,10 @@ fid ?= value = (fid, SomeValue . pinch <$> value)
 --
 -- > struct [1 .= ("Hello" :: Text), 2 .= (42 :: Int16)]
 struct :: [FieldPair] -> Value TStruct
-struct = VStruct . foldr go HM.empty
+struct = VStruct . foldl' go HM.empty
   where
-    go (_, Nothing) m = m
-    go (k, Just v) m = HM.insert k v m
+    go m (_, Nothing) = m
+    go m (k,  Just v) = HM.insert k v m
 
 -- | Constructs a 'Value' tagged with 'TUnion'.
 --
@@ -207,21 +211,23 @@ checkedUnpinch = case eqTType of
 
 -- | Helper to 'pinch' maps.
 pinchMap
-    :: forall k v kval vval m.
-        ( Pinchable k
-        , Pinchable v
-        , kval ~ Value (Tag k)
-        , vval ~ Value (Tag v)
-        )
-    => ((k -> v -> HashMap kval vval -> HashMap kval vval)
-           -> HashMap kval vval -> m -> HashMap kval vval)
-          -- ^ @foldrWithKey@
-    -> m  -- ^ map that implements @foldrWithKey@
+    :: forall k v m. (Pinchable k, Pinchable v)
+    => (m -> [(k, v)])
+          -- ^ @toList@
+    -> m  -- ^ map that implements @toList@
     -> Value TMap
-pinchMap folder = VMap . folder go HM.empty
+pinchMap toList = VMap . FL.fromFoldable . map go . toList
   where
-    go k v = HM.insert (pinch k) (pinch v)
+    go (k, v) = MapItem (pinch k) (pinch v)
 
+unpinchMap
+    :: (Pinchable k, Pinchable v)
+    => (k -> v -> m -> m) -> m -> Value a -> Parser m
+unpinchMap mapInsert mapEmpty (VMap xs) =
+    FL.foldl' (\m (!k, !v) -> mapInsert k v m) mapEmpty <$> FL.mapM go xs
+  where
+    go (MapItem k v) = (,) <$> checkedUnpinch k <*> checkedUnpinch v
+unpinchMap _ _ x = fail $ "Failed to read map. Got " ++ show x
 
 instance IsTType a => Pinchable (Value a) where
     type Tag (Value a) = a
@@ -284,14 +290,19 @@ instance Pinchable Int64 where
 
 instance Pinchable a => Pinchable (Vector a) where
     type Tag (Vector a) = TList
-    pinch = VList . V.map pinch
-    unpinch (VList xs) = V.mapM checkedUnpinch xs
+
+    pinch = VList . FL.map pinch . FL.fromFoldable
+
+    unpinch (VList xs) =
+        V.fromList . FL.toList <$> FL.mapM checkedUnpinch xs
     unpinch x = fail $ "Failed to read list. Got " ++ show x
 
 instance Pinchable a => Pinchable [a] where
     type Tag [a] = TList
-    pinch = VList . V.fromList . map pinch
-    unpinch (VList xs) = mapM checkedUnpinch $ V.toList xs
+
+    pinch = VList . FL.map pinch . FL.fromFoldable
+
+    unpinch (VList xs) = FL.toList <$> FL.mapM checkedUnpinch xs
     unpinch x = fail $ "Failed to read list. Got " ++ show x
 
 instance
@@ -301,32 +312,28 @@ instance
   , Pinchable v
   ) => Pinchable (HM.HashMap k v) where
     type Tag (HM.HashMap k v) = TMap
-    pinch = pinchMap HM.foldrWithKey
-
-    unpinch (VMap xs) =
-        fmap HM.fromList . mapM go $ HM.toList xs
-      where go (k, v) = (,) <$> checkedUnpinch k <*> checkedUnpinch v
-    unpinch x = fail $ "Failed to read map. Got " ++ show x
+    pinch = pinchMap HM.toList
+    unpinch = unpinchMap HM.insert HM.empty
 
 instance (Ord k, Pinchable k, Pinchable v) => Pinchable (M.Map k v) where
     type Tag (M.Map k v) = TMap
-    pinch = pinchMap M.foldrWithKey
-
-    unpinch (VMap xs) =
-        fmap M.fromList . mapM go $ HM.toList xs
-      where go (k, v) = (,) <$> checkedUnpinch k <*> checkedUnpinch v
-    unpinch x = fail $ "Failed to read map. Got " ++ show x
+    pinch = pinchMap M.toList
+    unpinch = unpinchMap M.insert M.empty
 
 instance (Eq a, Hashable a, Pinchable a) => Pinchable (HS.HashSet a) where
     type Tag (HS.HashSet a) = TSet
-    pinch = VSet . HS.map pinch
+    pinch = VSet . FL.map pinch . FL.fromFoldable
+
     unpinch (VSet xs) =
-        fmap HS.fromList . mapM checkedUnpinch $ HS.toList xs
+        FL.foldl' (\s !a -> HS.insert a s) HS.empty
+        <$> FL.mapM checkedUnpinch xs
     unpinch x = fail $ "Failed to read set. Got " ++ show x
 
 instance (Ord a, Pinchable a) => Pinchable (S.Set a) where
     type Tag (S.Set a) = TSet
-    pinch = VSet . S.foldr (HS.insert . pinch) HS.empty
+    pinch = VSet . FL.map pinch . FL.fromFoldable
+
     unpinch (VSet xs) =
-        fmap S.fromList . mapM checkedUnpinch $ HS.toList xs
+        FL.foldl' (\s !a -> S.insert a s) S.empty
+        <$> FL.mapM checkedUnpinch xs
     unpinch x = fail $ "Failed to read set. Got " ++ show x

@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE GADTs               #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TypeOperators       #-}
@@ -15,6 +16,7 @@
 -- functions to work with the intermediate representation.
 module Pinch.Internal.Value
     ( Value(..)
+    , MapItem(..)
     , SomeValue(..)
     , castValue
     , valueTType
@@ -24,17 +26,29 @@ import Control.DeepSeq     (NFData (..))
 import Data.ByteString     (ByteString)
 import Data.Hashable       (Hashable (..))
 import Data.HashMap.Strict (HashMap)
-import Data.HashSet        (HashSet)
 import Data.Int            (Int16, Int32, Int64, Int8)
+import Data.List           (intercalate)
 import Data.Typeable       ((:~:) (..), Typeable)
-import Data.Vector         (Vector)
 
+import qualified Data.Foldable       as F
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet        as S
-import qualified Data.Vector         as V
 
+import Pinch.Internal.FoldList (FoldList)
 import Pinch.Internal.TType
 
+-- | A single item in a map
+data MapItem k v = MapItem !(Value k) !(Value v)
+  deriving (Eq, Typeable)
+
+instance NFData (MapItem k v) where
+    rnf (MapItem k v) = rnf k `seq` rnf v `seq` ()
+
+instance Hashable (MapItem k v) where
+    hashWithSalt s (MapItem k v) = s `hashWithSalt` k `hashWithSalt` v
+
+instance Show (MapItem k v) where
+    show (MapItem k v) = show k ++ ": " ++ show v
 
 -- | @Value@ maps directly to serialized representation of Thrift types. It
 -- contains about as much information as what gets sent over the wire.
@@ -55,12 +69,28 @@ data Value a where
     VStruct :: !(HashMap Int16 SomeValue) -> Value TStruct
 
     VMap  :: forall k v. (IsTType k, IsTType v)
-          => !(HashMap (Value k) (Value v)) -> Value TMap
-    VSet  :: forall a. IsTType a => !(HashSet (Value a)) -> Value TSet
-    VList :: forall a. IsTType a => !(Vector (Value a)) -> Value TList
+          => !(FoldList (MapItem k v)) -> Value TMap
+    VSet  :: forall a. IsTType a => !(FoldList (Value a)) -> Value TSet
+    VList :: forall a. IsTType a => !(FoldList (Value a)) -> Value TList
   deriving Typeable
 
-deriving instance Show (Value a)
+instance Show (Value a) where
+    show (VBool   x) = show x
+    show (VByte   x) = show x
+    show (VDouble x) = show x
+    show (VInt16  x) = "i16(" ++ show x ++ ")"
+    show (VInt32  x) = "i32(" ++ show x ++ ")"
+    show (VInt64  x) = "i64(" ++ show x ++ ")"
+    show (VBinary x) = show x
+
+    show (VStruct x) = "{" ++ s ++ "}"
+      where
+        s = intercalate ", " (M.foldlWithKey' go [] x)
+        go xs i (SomeValue val) = (show i ++ ": " ++ show val):xs
+
+    show (VMap x) = show x
+    show (VSet  x) = show x
+    show (VList x) = show x
 
 instance Eq (Value a) where
     VBool   a == VBool   b = a == b
@@ -72,11 +102,15 @@ instance Eq (Value a) where
     VBinary a == VBinary b = a == b
     VStruct a == VStruct b = a == b
 
-    VMap  as == VMap  bs = areEqual2 as bs
-    VSet  as == VSet  bs = areEqual1 as bs
     VList as == VList bs = areEqual1 as bs
-
+    VMap as == VMap  bs = areEqual2 (toMap as) (toMap bs)
+      where
+        toMap = F.foldl' (\m (MapItem k v) -> M.insert k v m) M.empty
+    VSet as == VSet  bs = areEqual1 (toSet as) (toSet bs)
     _ == _ = False
+
+toSet :: forall f x. (F.Foldable f, Hashable x, Eq x) => f x -> S.HashSet x
+toSet = F.foldl' (flip S.insert) S.empty
 
 instance NFData (Value a) where
     rnf (VBool   a) = rnf a
@@ -117,6 +151,7 @@ castValue v = case eqTType of
 -- | Get the 'TType' of a 'Value'.
 valueTType :: IsTType a => Value a -> TType a
 valueTType _ = ttype
+{-# INLINE valueTType #-}
 
 areEqual
     :: forall a b. (IsTType a, IsTType b) => Value a -> Value b -> Bool
@@ -125,9 +160,8 @@ areEqual l r = case eqTType of
     Nothing -> False
 {-# INLINE areEqual #-}
 
--- | Helper to compare Values inside a container.
 areEqual1
-    :: forall f a b. (IsTType a, IsTType b, Eq (f (Value a)))
+    :: forall a b f. (IsTType a, IsTType b, Eq (f (Value a)))
     => f (Value a) -> f (Value b) -> Bool
 areEqual1 l r = case eqTType of
     Just (Refl :: a :~: b) -> l == r
@@ -136,9 +170,9 @@ areEqual1 l r = case eqTType of
 
 areEqual2
     :: forall f k1 v1 k2 v2.
-        ( IsTType k1, IsTType v1, IsTType k2, IsTType v2
-        , Eq (f (Value k1) (Value v1))
-        ) => f (Value k1) (Value v1) -> f (Value k2) (Value v2) -> Bool
+    ( IsTType k1, IsTType v1, IsTType k2, IsTType v2
+    , Eq (f (Value k1) (Value v1))
+    ) => f (Value k1) (Value v1) -> f (Value k2) (Value v2) -> Bool
 areEqual2 l r = case eqTType of
     Just (Refl :: k1 :~: k2) -> case eqTType of
         Just (Refl :: v1 :~: v2) -> l == r
@@ -155,21 +189,14 @@ instance Hashable (Value a) where
       VInt16  x -> s `hashWithSalt` (4 :: Int) `hashWithSalt` x
       VInt32  x -> s `hashWithSalt` (5 :: Int) `hashWithSalt` x
       VInt64  x -> s `hashWithSalt` (6 :: Int) `hashWithSalt` x
-
-      VList xs ->
-        V.foldr' (flip hashWithSalt) (s `hashWithSalt` (7 :: Int)) xs
-      VMap xs ->
-        M.foldrWithKey
-          (\k v s' -> s' `hashWithSalt` k `hashWithSalt` v)
-          (s `hashWithSalt` (8 :: Int))
-          xs
-      VSet xs ->
-        S.foldr (flip hashWithSalt) (s `hashWithSalt` (9 :: Int)) xs
+      VList   x -> s `hashWithSalt` (7 :: Int) `hashWithSalt` x
+      VMap    x -> s `hashWithSalt` (8 :: Int) `hashWithSalt` x
+      VSet    x -> s `hashWithSalt` (9 :: Int) `hashWithSalt` x
 
       VStruct fields ->
-        M.foldrWithKey (\k v s' -> s' `hashWithSalt` k `hashWithSalt` v)
-                       (s `hashWithSalt` (10 :: Int))
-                       fields
+        M.foldlWithKey' (\s' k v -> s' `hashWithSalt` k `hashWithSalt` v)
+                        (s `hashWithSalt` (10 :: Int))
+                        fields
 
 
 instance Hashable SomeValue where
