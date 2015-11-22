@@ -44,22 +44,25 @@ module Pinch.Internal.Pinchable
 import Control.Applicative
 #endif
 
-import Data.ByteString     (ByteString)
-import Data.Hashable       (Hashable)
-import Data.HashMap.Strict (HashMap)
-import Data.Int            (Int16, Int32, Int64, Int8)
-import Data.Text           (Text)
-import Data.Typeable       ((:~:) (..))
-import Data.Vector         (Vector)
-import GHC.Generics        (Generic, Rep)
+import Data.ByteString      (ByteString)
+import Data.ByteString.Lazy (toStrict)
+import Data.Hashable        (Hashable)
+import Data.HashMap.Strict  (HashMap)
+import Data.Int             (Int16, Int32, Int64, Int8)
+import Data.Text            (Text)
+import Data.Typeable        ((:~:) (..))
+import Data.Vector          (Vector)
+import GHC.Generics         (Generic, Rep)
 
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet        as HS
-import qualified Data.Map.Strict     as M
-import qualified Data.Set            as S
-import qualified Data.Text.Encoding  as TE
-import qualified Data.Vector         as V
-import qualified GHC.Generics        as G
+import qualified Data.HashMap.Strict     as HM
+import qualified Data.HashSet            as HS
+import qualified Data.Map.Strict         as M
+import qualified Data.Set                as S
+import qualified Data.Text.Encoding      as TE
+import qualified Data.Text.Lazy          as TL
+import qualified Data.Text.Lazy.Encoding as TLE
+import qualified Data.Vector             as V
+import qualified GHC.Generics            as G
 
 import Pinch.Internal.Pinchable.Parser
 import Pinch.Internal.TType
@@ -235,6 +238,12 @@ instance Pinchable Text where
     type Tag Text = TBinary
     pinch = VBinary . TE.encodeUtf8
     unpinch (VBinary b) = return . TE.decodeUtf8 $ b
+    unpinch x = fail $ "Failed to read string. Got " ++ show x
+
+instance Pinchable TL.Text where
+    type Tag TL.Text = TBinary
+    pinch = VBinary . toStrict . TLE.encodeUtf8
+    unpinch (VBinary b) = return . TL.fromStrict . TE.decodeUtf8 $ b
     unpinch x = fail $ "Failed to read string. Got " ++ show x
 
 instance Pinchable Bool where
