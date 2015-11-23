@@ -1,34 +1,35 @@
 sudo: false
+language: c
+
+# Need hvr-ghc regardless
+addons: {apt: {sources: [hvr-ghc]}}
 
 cache:
   apt: true
   directories:
-      - ~/.stack
+      - $HOME/.stack
 
 matrix:
     include:
-        - env: GHCVER=7.8.4 STACK_YAML=stack-7.8.4.yaml
+        # Test the library
+        - env: GHCVER=7.8.4 RESOLVER=lts-2
           addons: {apt: {packages: [ghc-7.8.4], sources: [hvr-ghc]}}
-        - env: GHCVER=7.10.2 STACK_YAML=stack-7.10.2.yaml
+        - env: GHCVER=7.10.2 RESOLVER=lts-3
           addons: {apt: {packages: [ghc-7.10.2], sources: [hvr-ghc]}}
-        - env: GHCVER=head STACK_YAML=stack-head.yaml
-          addons: {apt: {packages: [ghc-head], sources: [hvr-ghc]}}
-    allow_failures:
-        - env: GHCVER=head STACK_YAML=stack-head.yaml
 
 before_install:
-    - export PATH=/opt/ghc/$GHCVER/bin:$PATH
-    - export PATH=~/.local/bin:$PATH
+    - export PATH=$HOME/.local/bin:/opt/ghc/$GHCVER/bin:$PATH
     - mkdir -p ~/.local/bin
-    - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.6.0/stack-0.1.6.0-linux-x86_64.tar.gz | gunzip | tar -x
-    - mv stack-0.1.6.0-linux-x86_64/stack ~/.local/bin/stack
-    - chmod a+x ~/.local/bin/stack
+    - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
     - ghc --version
     - stack --version
 
 install:
-    - ./scripts/travis_long stack --no-terminal --skip-ghc-check setup
-    - ./scripts/travis_long stack --no-terminal --skip-ghc-check test --only-snapshot
+    - ./scripts/travis_long stack --resolver $RESOLVER --no-terminal --skip-ghc-check setup
+    - ./scripts/travis_long stack --resolver $RESOLVER --no-terminal --skip-ghc-check test --only-snapshot
 
 script:
-    - stack --no-terminal --skip-ghc-check test
+    - stack --resolver $RESOLVER --no-terminal --skip-ghc-check test
+
+    # Ensure that the example builds too.
+    - cd examples/keyvalue && stack --resolver $RESOLVER --no-terminal --skip-ghc-check test

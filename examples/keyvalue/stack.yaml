@@ -1,6 +1,7 @@
 flags: {}
 packages:
 - '.'
-- ./examples/keyvalue
+- ../..
 extra-deps: []
 resolver: lts-3.11
+

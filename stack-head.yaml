@@ -1,6 +1,0 @@
-flags: {}
-packages:
-- '.'
-- ./examples/keyvalue
-extra-deps: []
-resolver: nightly-2015-08-27
