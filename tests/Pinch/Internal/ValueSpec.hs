@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Pinch.Internal.ValueSpec (spec) where
 
@@ -12,6 +13,21 @@ import Pinch.Arbitrary ()
 import qualified Pinch.Internal.FoldList as FL
 import qualified Pinch.Internal.TType    as T
 import qualified Pinch.Internal.Value    as V
+
+
+#if !MIN_VERSION_QuickCheck(2, 8, 0)
+import Control.Applicative ((<$>))
+import Control.Arrow       (second)
+
+shuffle :: [a] -> Gen [a]
+shuffle [] = return []
+shuffle xs = do
+  (y, ys) <- elements (selectOne xs)
+  (y:) <$> shuffle ys
+  where
+    selectOne [] = []
+    selectOne (y:ys) = (y,ys) : map (second (y:)) (selectOne ys)
+#endif
 
 
 spec :: Spec
