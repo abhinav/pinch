@@ -16,20 +16,19 @@ module Pinch.Protocol
     ) where
 
 import Data.ByteString         (ByteString)
-import Data.ByteString.Builder (Builder)
-import Data.Int                (Int64)
 
+import Pinch.Internal.Builder (Builder)
 import Pinch.Internal.Message (Message)
 import Pinch.Internal.TType   (IsTType)
 import Pinch.Internal.Value   (Value)
 
 -- | Protocols define a specific way to convert values into binary and back.
 data Protocol = Protocol
-    { serializeValue   :: forall a. IsTType a => Value a -> (Int64, Builder)
+    { serializeValue   :: forall a. IsTType a => Value a -> Builder
     -- ^ Serializes a 'Value' into a ByteString builder.
     --
     -- Returns a @Builder@ and the total length of the serialized content.
-    , serializeMessage :: Message -> (Int64, Builder)
+    , serializeMessage :: Message -> Builder
     -- ^ Serializes a 'Message' and its payload into a ByteString builder.
     --
     -- Returns a @Builder@ and the total length of the serialized content.

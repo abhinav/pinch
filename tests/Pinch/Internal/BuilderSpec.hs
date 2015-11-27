@@ -2,41 +2,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Pinch.Internal.BuilderSpec (spec) where
 
-import Control.Arrow           (second)
-import Data.ByteString         (ByteString)
-import Data.ByteString.Builder (toLazyByteString)
-import Data.ByteString.Lazy    (toStrict)
-import Data.Int                (Int64)
-import Data.Word               (Word8)
+import Data.Monoid
+import Data.Word             (Word8)
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import Test.QuickCheck
 
 import qualified Data.ByteString as B
 
 import Pinch.Arbitrary
-import Pinch.Internal.Builder (Build)
 
 import qualified Pinch.Internal.Builder as BB
 
-run :: Build -> (Int64, ByteString)
-run = second (toStrict . toLazyByteString) . BB.run
-
-
-encodeCases
-    :: (a -> Build) -> [([Word8], a)] -> Expectation
-encodeCases encode = mapM_ . uncurry $ \bytes a -> do
-    let (size, encoded) = run (encode a)
-        expected = B.pack bytes
-    encoded `shouldBe` expected
-    fromIntegral size `shouldBe` B.length expected
-
+builderCases
+    :: (Show a, Eq a)
+    => (a -> BB.Builder) -> [([Word8], a)] -> Expectation
+builderCases build = mapM_ . uncurry $ \expected a ->
+    B.unpack (BB.runBuilder (build a)) `shouldBe` expected
 
 spec :: Spec
 spec = describe "Builder" $ do
 
-    it "can encode 8-bit integers" $
-        encodeCases BB.int8
+    it "can serialize 8-bit integers (1)" $
+        builderCases BB.int8
             [ ([0x01], 1)
             , ([0x05], 5)
             , ([0x7f], 127)
@@ -44,8 +31,11 @@ spec = describe "Builder" $ do
             , ([0x80], -128)
             ]
 
-    it "can encode 16-bit integers" $
-        encodeCases BB.int16
+    prop "can serialize 8-bit integers (2)" $ \b ->
+        B.unpack (BB.runBuilder (BB.int8 b)) `shouldBe` [fromIntegral b]
+
+    it "can serialize 16-bit integers" $
+        builderCases BB.int16BE
             [ ([0x00, 0x01], 1)
             , ([0x00, 0xff], 255)
             , ([0x01, 0x00], 256)
@@ -58,8 +48,8 @@ spec = describe "Builder" $ do
             , ([0x80, 0x00], -32768)
             ]
 
-    it "can encode 32-bit integers" $
-        encodeCases BB.int32
+    it "can serialize 32-bit integers" $
+        builderCases BB.int32BE
             [ ([0x00, 0x00, 0x00, 0x01], 1)
             , ([0x00, 0x00, 0x00, 0xff], 255)
             , ([0x00, 0x00, 0xff, 0xff], 65535)
@@ -72,8 +62,8 @@ spec = describe "Builder" $ do
             , ([0x80, 0x00, 0x00, 0x00], -2147483648)
             ]
 
-    it "can encode 64-bit integers" $
-        encodeCases BB.int64
+    it "can serialize 64-bit integers" $
+        builderCases BB.int64BE
             [ ([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01], 1)
             , ([0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff], 4294967295)
             , ([0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff], 1099511627775)
@@ -88,8 +78,8 @@ spec = describe "Builder" $ do
             , ([0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], -9223372036854775808)
             ]
 
-    it "can encode doubles" $
-        encodeCases BB.double
+    it "can serialize doubles" $
+        builderCases BB.doubleBE
             [ ([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 0.0)
             , ([0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 1.0)
             , ([0x3f, 0xf0, 0x00, 0x00, 0x00, 0x06, 0xdf, 0x38], 1.0000000001)
@@ -99,25 +89,17 @@ spec = describe "Builder" $ do
             , ([0xbf, 0xf0, 0x00, 0x00, 0x00, 0x06, 0xdf, 0x38], -1.0000000001)
             ]
 
-    prop "can encode bytestrings" $ \(SomeByteString bs) ->
-        run (BB.byteString bs) === (fromIntegral $ B.length bs, bs)
+    prop "can serialize byte strings" $ \(SomeByteString bs) ->
+        BB.runBuilder (BB.byteString bs) `shouldBe` bs
 
-    it "can join multiple operations using (>>)" $
-        encodeCases (\(a, b) -> BB.int16 a >> BB.byteString b)
-            [ ( [0x12, 0x34, 0x61, 0x62, 0x63, 0x64]
-              , (4660, "abcd")
-              )
-            , ( [0x00, 0x00, 0x68, 0x65, 0x6c, 0x6c, 0x6f]
-              , (0, "hello")
-              )
-            ]
+    prop "can append primitives" $
+        BB.runBuilder (BB.int8 1 <> BB.int32BE 2)
+            `shouldBe` B.pack [1, 0, 0, 0, 2]
 
-    it "can join multiple operations using (>>=)" $
-        encodeCases (\(a, b) -> BB.int16 a >>= \() -> BB.byteString b)
-            [ ( [0x12, 0x34, 0x61, 0x62, 0x63, 0x64]
-              , (4660, "abcd")
-              )
-            , ( [0x00, 0x00, 0x68, 0x65, 0x6c, 0x6c, 0x6f]
-              , (0, "hello")
-              )
-            ]
+    prop "can append byte strings" $ \(SomeByteString l) (SomeByteString r) ->
+        BB.runBuilder (BB.byteString l <> BB.byteString r)
+            `shouldBe` (l <> r)
+
+    prop "can append primitives with bytestrings" $ \(SomeByteString r) ->
+        B.unpack (BB.runBuilder (BB.int32BE 5 <> BB.byteString r))
+            `shouldBe` (0:0:0:5:B.unpack r)

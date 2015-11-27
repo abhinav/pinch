@@ -201,7 +201,7 @@ union k v = VStruct (HM.singleton k (SomeValue $ pinch v))
 checkedUnpinch
     :: forall a b. (Pinchable a, IsTType b)
     => Value b -> Parser a
-checkedUnpinch = case eqTType of
+checkedUnpinch = case ttypeEqT of
     Nothing -> const . fail $
         "Type mismatch. Expected " ++ show ttypeA ++ ". Got " ++ show ttypeB
     Just (Refl :: Tag a :~: b) -> unpinch

@@ -143,7 +143,7 @@ instance NFData SomeValue where
 
 -- | Safely attempt to cast a Value into another.
 castValue :: forall a b. (IsTType a, IsTType b) => Value a -> Maybe (Value b)
-castValue v = case eqTType of
+castValue v = case ttypeEqT of
     Just (Refl :: a :~: b) -> Just v
     Nothing -> Nothing
 {-# INLINE castValue #-}
@@ -155,7 +155,7 @@ valueTType _ = ttype
 
 areEqual
     :: forall a b. (IsTType a, IsTType b) => Value a -> Value b -> Bool
-areEqual l r = case eqTType of
+areEqual l r = case ttypeEqT of
     Just (Refl :: a :~: b) -> l == r
     Nothing -> False
 {-# INLINE areEqual #-}
@@ -163,7 +163,7 @@ areEqual l r = case eqTType of
 areEqual1
     :: forall a b f. (IsTType a, IsTType b, Eq (f (Value a)))
     => f (Value a) -> f (Value b) -> Bool
-areEqual1 l r = case eqTType of
+areEqual1 l r = case ttypeEqT of
     Just (Refl :: a :~: b) -> l == r
     Nothing -> False
 {-# INLINE areEqual1 #-}
@@ -173,8 +173,8 @@ areEqual2
     ( IsTType k1, IsTType v1, IsTType k2, IsTType v2
     , Eq (f (Value k1) (Value v1))
     ) => f (Value k1) (Value v1) -> f (Value k2) (Value v2) -> Bool
-areEqual2 l r = case eqTType of
-    Just (Refl :: k1 :~: k2) -> case eqTType of
+areEqual2 l r = case ttypeEqT of
+    Just (Refl :: k1 :~: k2) -> case ttypeEqT of
         Just (Refl :: v1 :~: v2) -> l == r
         Nothing -> False
     Nothing -> False

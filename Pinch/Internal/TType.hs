@@ -22,8 +22,8 @@ module Pinch.Internal.TType
     , IsTType(..)
     , SomeTType(..)
 
-    , ttypeIsEqual
-    , eqTType
+    , ttypeEquality
+    , ttypeEqT
 
     -- * Tags
 
@@ -46,7 +46,6 @@ module Pinch.Internal.TType
 
 import Data.Hashable (Hashable (..))
 import Data.Typeable ((:~:) (..), Typeable)
-import Unsafe.Coerce (unsafeCoerce)
 
 -- | > bool
 data TBool   deriving (Typeable)
@@ -160,17 +159,25 @@ data SomeTType where
 
 deriving instance Show SomeTType
 
--- | Checks if two TType values are equal.
-ttypeIsEqual :: TType a -> TType b -> Bool
-ttypeIsEqual a b = a == unsafeCoerce b
-{-# INLINE ttypeIsEqual #-}
+-- | Witness the equality of two ttypes.
+ttypeEquality :: TType a -> TType b -> Maybe (a :~: b)
+ttypeEquality TBool   TBool   = Just Refl
+ttypeEquality TByte   TByte   = Just Refl
+ttypeEquality TDouble TDouble = Just Refl
+ttypeEquality TInt16  TInt16  = Just Refl
+ttypeEquality TInt32  TInt32  = Just Refl
+ttypeEquality TInt64  TInt64  = Just Refl
+ttypeEquality TBinary TBinary = Just Refl
+ttypeEquality TStruct TStruct = Just Refl
+ttypeEquality TMap    TMap    = Just Refl
+ttypeEquality TSet    TSet    = Just Refl
+ttypeEquality TList   TList   = Just Refl
+ttypeEquality _       _       = Nothing
+{-# INLINE ttypeEquality #-}
 
 -- | Witness the equality of two TTypes.
 --
--- This is similar to @Data.Typeable.eqT@ except it's faster for TType
--- comparison.
-eqTType :: forall a b. (IsTType a, IsTType b) => Maybe (a :~: b)
-eqTType =
-    if (ttype :: TType a) `ttypeIsEqual` (ttype :: TType b)
-        then Just (unsafeCoerce Refl)
-        else Nothing
+-- Implicit version of @ttypeEquality@.
+ttypeEqT :: forall a b. (IsTType a, IsTType b) => Maybe (a :~: b)
+ttypeEqT = ttypeEquality ttype ttype
+{-# INLINE ttypeEqT #-}

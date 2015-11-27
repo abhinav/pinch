@@ -146,13 +146,11 @@ module Pinch
     ) where
 
 import Control.Monad
-import Data.ByteString      (ByteString)
-import Data.ByteString.Lazy (toStrict)
-import Data.Int             (Int32)
-import Data.Text            (Text)
+import Data.ByteString (ByteString)
+import Data.Int        (Int32)
+import Data.Text       (Text)
 
-import qualified Data.ByteString.Builder as BB
-
+import Pinch.Internal.Builder   (runBuilder)
 import Pinch.Internal.Generic
 import Pinch.Internal.Message
 import Pinch.Internal.Pinchable
@@ -160,10 +158,6 @@ import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol
 import Pinch.Protocol.Binary
-
-builderToStrict :: BB.Builder -> ByteString
-builderToStrict = toStrict . BB.toLazyByteString
-{-# INLINE  builderToStrict #-}
 
 -- TODO we know the size of the serialized payload. can probably pre-allocate
 -- the byte string before filling it with the contents of the builder.
@@ -202,7 +196,7 @@ builderToStrict = toStrict . BB.toLazyByteString
 -- [11,0,0,0,2,0,0,0,1,97,0,0,0,1,98]
 --
 encode :: Pinchable a => Protocol -> a -> ByteString
-encode p = builderToStrict . snd . serializeValue p . pinch
+encode p = runBuilder . serializeValue p . pinch
 {-# INLINE encode #-}
 
 -- | Decode a 'Pinchable' value from the using the given 'Protocol'.
@@ -291,7 +285,7 @@ decode p = deserializeValue p >=> runParser . unpinch
 -- @
 --
 encodeMessage :: Protocol -> Message -> ByteString
-encodeMessage p = builderToStrict . snd . serializeMessage p
+encodeMessage p = runBuilder . serializeMessage p
 {-# INLINE encodeMessage #-}
 
 -- | Decode a 'Message' using the given 'Protocol'.

@@ -79,10 +79,14 @@ instance Show a => Show (FoldList a) where
 
 instance Functor FoldList where
     fmap f (FoldList l) = FoldList $ \k r0 -> l (\r1 a -> k r1 (f a)) r0
+    {-# INLINE fmap #-}
 
 instance F.Foldable FoldList where
     foldMap f (FoldList l) = l (\r a -> r <> f a) mempty
+    {-# INLINE foldMap #-}
+
     foldl' f r (FoldList l) = l f r
+    {-# INLINE foldl' #-}
 
 instance T.Traversable FoldList where
     sequenceA (FoldList f) =
@@ -90,6 +94,7 @@ instance T.Traversable FoldList where
       where
         go (FoldList xs) x = FoldList (\k r -> k (xs k r) x)
         {-# INLINE go #-}
+    {-# INLINE sequenceA #-}
 
 instance Eq a => Eq (FoldList a) where
     l == r = F.toList l == F.toList r

@@ -7,6 +7,8 @@
     to `Data.Typeable.{eqT, cast}`.
 -   Improve performance further by changing the underlying representation of
     lists, sets, and maps.
+-   Changed `Protocol` to not return the serialized length of messages or
+    values.
 
 0.1.0.1
 =======

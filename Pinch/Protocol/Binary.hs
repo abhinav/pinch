@@ -23,12 +23,13 @@ import Data.Bits           (shiftR, (.&.))
 import Data.ByteString     (ByteString)
 import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int8)
+import Data.Monoid
 
 import qualified Data.ByteString     as B
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text.Encoding  as TE
 
-import Pinch.Internal.Builder (Build)
+import Pinch.Internal.Builder (Builder)
 import Pinch.Internal.Message
 import Pinch.Internal.Parser  (Parser, runParser)
 import Pinch.Internal.TType
@@ -43,21 +44,19 @@ import qualified Pinch.Internal.Parser   as P
 -- | Provides an implementation of the Thrift Binary Protocol.
 binaryProtocol :: Protocol
 binaryProtocol = Protocol
-    { serializeValue     = BB.run . binarySerialize
+    { serializeValue     = binarySerialize
     , deserializeValue   = binaryDeserialize ttype
-    , serializeMessage   = BB.run . binarySerializeMessage
+    , serializeMessage   = binarySerializeMessage
     , deserializeMessage = binaryDeserializeMessage
     }
 
 ------------------------------------------------------------------------------
 
-binarySerializeMessage :: Message -> Build
-binarySerializeMessage msg = do
-    binarySerialize . VBinary . TE.encodeUtf8 $ messageName msg
-    BB.int8  $ messageCode (messageType msg)
-    BB.int32 $ messageId msg
+binarySerializeMessage :: Message -> Builder
+binarySerializeMessage msg =
+    string (TE.encodeUtf8 $ messageName msg) <>
+    BB.int8 (messageCode (messageType msg)) <> BB.int32BE (messageId msg) <>
     binarySerialize (messagePayload msg)
-
 
 binaryDeserializeMessage :: ByteString -> Either String Message
 binaryDeserializeMessage = runParser binaryMessageParser
@@ -199,55 +198,94 @@ parseStruct = P.int8 >>= loop M.empty
 
 ------------------------------------------------------------------------------
 
-binarySerialize :: Value a -> Build
-binarySerialize v0 = case v0 of
-  VBinary  x -> do
-    BB.int32 . fromIntegral . B.length $ x
-    BB.byteString x
-  VBool    x -> BB.int8 $ if x then 1 else 0
-  VByte    x -> BB.int8   x
-  VDouble  x -> BB.double x
-  VInt16   x -> BB.int16  x
-  VInt32   x -> BB.int32  x
-  VInt64   x -> BB.int64  x
-  VStruct xs -> serializeStruct xs
-  VList   xs -> serializeList ttype       xs
-  VMap    xs -> serializeMap  ttype ttype xs
-  VSet    xs -> serializeList ttype       xs
+binarySerialize :: forall a. IsTType a => Value a -> Builder
+binarySerialize = case (ttype :: TType a) of
+  TBinary  -> serializeBinary
+  TBool    -> serializeBool
+  TByte    -> serializeByte
+  TDouble  -> serializeDouble
+  TInt16   -> serializeInt16
+  TInt32   -> serializeInt32
+  TInt64   -> serializeInt64
+  TStruct  -> serializeStruct
+  TList    -> serializeList
+  TMap     -> serializeMap
+  TSet     -> serializeSet
+{-# INLINE binarySerialize #-}
 
+serializeBinary :: Value TBinary -> Builder
+serializeBinary (VBinary x) = string x
+{-# INLINE serializeBinary #-}
 
-serializeStruct :: HashMap Int16 SomeValue -> Build
-serializeStruct fields = do
-    forM_ (M.toList fields) $ \(fieldId, SomeValue fieldValue) ->
-        writeField fieldId ttype fieldValue
-    BB.int8 0
+serializeBool :: Value TBool -> Builder
+serializeBool (VBool x) = BB.int8 $ if x then 1 else 0
+{-# INLINE serializeBool #-}
+
+serializeByte :: Value TByte -> Builder
+serializeByte (VByte x) = BB.int8 x
+{-# INLINE serializeByte #-}
+
+serializeDouble :: Value TDouble -> Builder
+serializeDouble (VDouble x) = BB.doubleBE x
+{-# INLINE serializeDouble #-}
+
+serializeInt16 :: Value TInt16 -> Builder
+serializeInt16 (VInt16 x) = BB.int16BE x
+{-# INLINE serializeInt16 #-}
+
+serializeInt32 :: Value TInt32 -> Builder
+serializeInt32 (VInt32 x) = BB.int32BE x
+{-# INLINE serializeInt32 #-}
+
+serializeInt64 :: Value TInt64 -> Builder
+serializeInt64 (VInt64 x) = BB.int64BE x
+{-# INLINE serializeInt64 #-}
+
+serializeList :: Value TList -> Builder
+serializeList (VList xs) = serializeCollection ttype xs
+{-# INLINE serializeList #-}
+
+serializeSet :: Value TSet -> Builder
+serializeSet (VSet xs) = serializeCollection ttype xs
+{-# INLINE serializeSet #-}
+
+serializeStruct :: Value TStruct -> Builder
+serializeStruct (VStruct fields) =
+    M.foldlWithKey'
+        (\rest fid (SomeValue val) -> rest <> writeField fid ttype val)
+        mempty fields
+    <> BB.int8 0
   where
-    writeField :: Int16 -> TType a -> Value a -> Build
-    writeField fieldId fieldType fieldValue = do
-        BB.int8 (toTypeCode fieldType)
-        BB.int16 fieldId
-        binarySerialize fieldValue
+    writeField :: IsTType a => Int16 -> TType a -> Value a -> Builder
+    writeField fieldId fieldType fieldValue =
+        typeCode fieldType <> BB.int16BE fieldId <> binarySerialize fieldValue
+    {-# INLINE writeField #-}
+{-# INLINE serializeStruct #-}
 
+serializeMap :: Value TMap -> Builder
+serializeMap (VMap items) = serialize ttype ttype items
+  where
+    serialize
+        :: (IsTType k, IsTType v)
+        => TType k -> TType v -> FL.FoldList (MapItem k v) -> Builder
+    serialize kt vt xs =
+        typeCode kt <> typeCode vt <> BB.int32BE size <> body
+      where
+        (body, size) = FL.foldl' go (mempty, 0 :: Int32) xs
+        go (prev, !c) (MapItem k v) =
+            ( prev <> binarySerialize k <> binarySerialize v
+            , c + 1
+            )
+{-# INLINE serializeMap #-}
 
-serializeList :: TType a -> FL.FoldList (Value a) -> Build
-serializeList vtype xs = do
-    BB.int8  $ toTypeCode vtype
-    let go (prev, !c) item = (prev >> binarySerialize item, c + 1)
-        (write, size) = FL.foldl' go (return (), 0 :: Int32) xs
-    BB.int32 size
-    write
-
-
-serializeMap :: TType k -> TType v -> FL.FoldList (MapItem k v) -> Build
-serializeMap kt vt xs = do
-    BB.int8  $ toTypeCode kt
-    BB.int8  $ toTypeCode vt
-    let go (prev, !c) (MapItem k v) =
-           (prev >> binarySerialize k >> binarySerialize v, c + 1)
-        (write, size) = FL.foldl' go (return (), 0 :: Int32) xs
-    BB.int32 size
-    write
-
+serializeCollection
+    :: IsTType a
+    => TType a -> FL.FoldList (Value a) -> Builder
+serializeCollection vtype xs =
+    let go (prev, !c) item = (prev <> binarySerialize item, c + 1)
+        (body, size) = FL.foldl' go (mempty, 0 :: Int32) xs
+    in typeCode vtype <> BB.int32BE size <> body
+{-# INLINE serializeCollection #-}
 
 ------------------------------------------------------------------------------
 
@@ -257,6 +295,7 @@ messageCode Call      = 1
 messageCode Reply     = 2
 messageCode Exception = 3
 messageCode Oneway    = 4
+{-# INLINE messageCode #-}
 
 
 fromMessageCode :: Int8 -> Maybe MessageType
@@ -265,6 +304,7 @@ fromMessageCode 2 = Just Reply
 fromMessageCode 3 = Just Exception
 fromMessageCode 4 = Just Oneway
 fromMessageCode _ = Nothing
+{-# INLINE fromMessageCode #-}
 
 
 -- | Map a TType to its type code.
@@ -280,6 +320,7 @@ toTypeCode TStruct = 12
 toTypeCode TMap    = 13
 toTypeCode TSet    = 14
 toTypeCode TList   = 15
+{-# INLINE toTypeCode #-}
 
 
 -- | Map a type code to the corresponding TType.
@@ -296,3 +337,15 @@ fromTypeCode 13 = Just $ SomeTType TMap
 fromTypeCode 14 = Just $ SomeTType TSet
 fromTypeCode 15 = Just $ SomeTType TList
 fromTypeCode _  = Nothing
+{-# INLINE fromTypeCode #-}
+
+------------------------------------------------------------------------------
+
+
+string :: ByteString -> Builder
+string b = BB.int32BE (fromIntegral $ B.length b) <> BB.byteString b
+{-# INLINE string #-}
+
+typeCode :: TType a -> Builder
+typeCode = BB.int8 . toTypeCode
+{-# INLINE typeCode #-}

@@ -67,6 +67,7 @@ test-suite pinch-spec
                    , Pinch.Expectations
                    , Pinch.Protocol.BinarySpec
                    , Pinch.Internal.BuilderSpec
+                   , Pinch.Internal.BuilderParserSpec
                    , Pinch.Internal.FoldListSpec
                    , Pinch.Internal.GenericSpec
                    , Pinch.Internal.ParserSpec
