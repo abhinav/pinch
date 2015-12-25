@@ -46,16 +46,16 @@ module Pinch.Internal.Pinchable
 import Control.Applicative
 #endif
 
-import Data.ByteString      (ByteString)
-import Data.ByteString.Lazy (toStrict)
-import Data.Hashable        (Hashable)
-import Data.Int             (Int16, Int32, Int64, Int8)
-import Data.List            (foldl')
-import Data.Text            (Text)
-import Data.Typeable        ((:~:) (..))
-import Data.Vector          (Vector)
-import GHC.Generics         (Generic, Rep)
+import Data.ByteString (ByteString)
+import Data.Hashable   (Hashable)
+import Data.Int        (Int16, Int32, Int64, Int8)
+import Data.List       (foldl')
+import Data.Text       (Text)
+import Data.Typeable   ((:~:) (..))
+import Data.Vector     (Vector)
+import GHC.Generics    (Generic, Rep)
 
+import qualified Data.ByteString.Lazy    as BL
 import qualified Data.HashMap.Strict     as HM
 import qualified Data.HashSet            as HS
 import qualified Data.Map.Strict         as M
@@ -240,6 +240,12 @@ instance Pinchable ByteString where
     unpinch (VBinary b) = return b
     unpinch x = fail $ "Failed to read binary. Got " ++ show x
 
+instance Pinchable BL.ByteString where
+    type Tag BL.ByteString = TBinary
+    pinch = VBinary . BL.toStrict
+    unpinch (VBinary b) = return (BL.fromStrict b)
+    unpinch x = fail $ "Failed to read binary. Got " ++ show x
+
 instance Pinchable Text where
     type Tag Text = TBinary
     pinch = VBinary . TE.encodeUtf8
@@ -248,7 +254,7 @@ instance Pinchable Text where
 
 instance Pinchable TL.Text where
     type Tag TL.Text = TBinary
-    pinch = VBinary . toStrict . TLE.encodeUtf8
+    pinch = VBinary . BL.toStrict . TLE.encodeUtf8
     unpinch (VBinary b) = return . TL.fromStrict . TE.decodeUtf8 $ b
     unpinch x = fail $ "Failed to read string. Got " ++ show x
 
