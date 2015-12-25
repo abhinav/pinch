@@ -211,14 +211,14 @@ checkedUnpinch = case ttypeEqT of
 
 -- | Helper to 'pinch' maps.
 pinchMap
-    :: forall k v m. (Pinchable k, Pinchable v)
-    => (m -> [(k, v)])
-          -- ^ @toList@
-    -> m  -- ^ map that implements @toList@
+    :: (Pinchable k, Pinchable v)
+    => (forall r. (r -> k -> v -> r) -> r -> m k v -> r)
+          -- ^ @foldlWithKey@
+    -> m k v
     -> Value TMap
-pinchMap toList = VMap . FL.fromFoldable . map go . toList
+pinchMap foldlWithKey = VMap . FL.map go . FL.fromMap foldlWithKey
   where
-    go (k, v) = MapItem (pinch k) (pinch v)
+    go (!k, !v) = MapItem (pinch k) (pinch v)
 
 unpinchMap
     :: (Pinchable k, Pinchable v)
@@ -318,12 +318,12 @@ instance
   , Pinchable v
   ) => Pinchable (HM.HashMap k v) where
     type Tag (HM.HashMap k v) = TMap
-    pinch = pinchMap HM.toList
+    pinch = pinchMap HM.foldlWithKey'
     unpinch = unpinchMap HM.insert HM.empty
 
 instance (Ord k, Pinchable k, Pinchable v) => Pinchable (M.Map k v) where
     type Tag (M.Map k v) = TMap
-    pinch = pinchMap M.toList
+    pinch = pinchMap M.foldlWithKey'
     unpinch = unpinchMap M.insert M.empty
 
 instance (Eq a, Hashable a, Pinchable a) => Pinchable (HS.HashSet a) where

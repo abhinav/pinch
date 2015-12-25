@@ -20,6 +20,7 @@ module Pinch.Internal.FoldList
     , F.foldr
     , F.toList
     , fromFoldable
+    , fromMap
     , T.mapM
     , T.sequence
     ) where
@@ -36,6 +37,7 @@ import Data.List       (intercalate)
 import Data.Monoid
 import Data.Typeable   (Typeable)
 
+import qualified Control.Monad    as M
 import qualified Data.Foldable    as F
 import qualified Data.List        as L
 import qualified Data.Traversable as T
@@ -46,6 +48,18 @@ import qualified Data.Traversable as T
 -- representation of various data types that users provide.
 newtype FoldList a = FoldList (forall r. (r -> a -> r) -> r -> r)
   deriving Typeable
+
+-- | Builds a FoldList over pairs of items of a map.
+fromMap
+    :: (forall r. (r -> k -> v -> r) -> r -> m k v -> r)
+    -- ^ @foldlWithKey@ provided by the map implementation.
+    -> m k v
+    -> FoldList (k, v)
+fromMap foldlWithKey m = FoldList (\k r -> foldlWithKey (go k) r m)
+  where
+    go k r a b = k r (a, b)
+    {-# INLINE go #-}
+{-# INLINE fromMap #-}
 
 -- | Builds a FoldList from a Foldable.
 fromFoldable :: F.Foldable f => f a -> FoldList a
@@ -58,7 +72,7 @@ fromFoldable l = FoldList (\k r -> F.foldl' k r l)
 -- the results of the same FoldList are requested multiple times, the function
 -- will be called multiple times on the same elements.
 map :: (a -> b) -> FoldList a -> FoldList b
-map = fmap
+map f (FoldList l) = FoldList $ \k r0 -> l (\r1 a -> k r1 (f a)) r0
 {-# INLINE map #-}
 
 -- | Returns a FoldList with the given item repeated @n@ times.
@@ -69,7 +83,7 @@ replicate n a = fromFoldable (L.replicate n a)
 -- | Executes the given monadic action the given number of times and returns
 -- a FoldList of the results.
 replicateM :: Monad m => Int -> m a -> m (FoldList a)
-replicateM n m = T.sequence (replicate n m)
+replicateM n = fmap fromFoldable . M.replicateM n
 {-# INLINE replicateM #-}
 
 instance Show a => Show (FoldList a) where
@@ -78,7 +92,7 @@ instance Show a => Show (FoldList a) where
         go a xs = show a:xs
 
 instance Functor FoldList where
-    fmap f (FoldList l) = FoldList $ \k r0 -> l (\r1 a -> k r1 (f a)) r0
+    fmap = map
     {-# INLINE fmap #-}
 
 instance F.Foldable FoldList where
