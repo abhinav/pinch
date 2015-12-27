@@ -12,10 +12,10 @@ Other changes:
 
 -   Improve deserialization performance significantly by getting rid of
     unnecessary calls to `Data.Typeable.{eqT, cast}`.
--   Improve serialization performance by allocating the outbut buffer in one go
+-   Improve serialization performance by allocating the output buffer in one go
     rather than using `ByteString.Builder`.
 -   Improve serialization and deserialization performance further by changing
-    the underlying representation of lists, sets, and maps.
+    the intermediate representation of lists, sets, and maps.
 
 0.1.0.2
 =======

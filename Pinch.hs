@@ -159,9 +159,6 @@ import Pinch.Internal.Value
 import Pinch.Protocol
 import Pinch.Protocol.Binary
 
--- TODO we know the size of the serialized payload. can probably pre-allocate
--- the byte string before filling it with the contents of the builder.
-
 ------------------------------------------------------------------------------
 
 -- $encodeDecodeValues
