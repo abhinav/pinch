@@ -1,3 +1,8 @@
+0.1.0.2
+=======
+
+-   Loosen `vector` version constraint.
+
 0.1.0.1
 =======
 
