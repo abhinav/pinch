@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      :  Pinch.Internal.Builder
 -- Copyright   :  (c) Abhinav Gupta 2015
@@ -22,6 +23,10 @@ module Pinch.Internal.Builder
     , doubleBE
     , byteString
     ) where
+
+#if __GLASGOW_HASKELL__ < 709
+import Data.Monoid
+#endif
 
 import Data.ByteString              (ByteString)
 import Data.ByteString.Builder.Prim ((>*<))

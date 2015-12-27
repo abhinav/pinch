@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 findUp() {
 	if [[ -f "$1/$2" ]]; then
 		echo "$1"
@@ -22,8 +24,11 @@ git rm -rf .
 popd
 
 pushd "$ROOT"
-cabal configure
-cabal haddock \
+runhaskell Setup.hs configure \
+	--package-db="$(stack path --local-pkg-db)" \
+	--package-db="$(stack path --snapshot-pkg-db)"
+
+runhaskell Setup.hs haddock \
 	--haddock-options="--odir=gh-pages $OPTIONS" \
 	--html-location="http://hackage.haskell.org/packages/archive/\$pkg/latest/doc/html"
 popd
@@ -32,3 +37,5 @@ pushd "$ROOT/gh-pages"
 git add .
 git commit -m "Documentation update at $(date '+%FT%T%z')"
 popd
+
+echo "Now run: rm -rf '$ROOT/dist'"

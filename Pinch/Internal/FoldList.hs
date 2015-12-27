@@ -83,7 +83,7 @@ replicate n a = fromFoldable (L.replicate n a)
 -- | Executes the given monadic action the given number of times and returns
 -- a FoldList of the results.
 replicateM :: Monad m => Int -> m a -> m (FoldList a)
-replicateM n = fmap fromFoldable . M.replicateM n
+replicateM n = M.liftM fromFoldable . M.replicateM n
 {-# INLINE replicateM #-}
 
 instance Show a => Show (FoldList a) where

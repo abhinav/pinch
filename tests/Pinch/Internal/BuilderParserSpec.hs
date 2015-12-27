@@ -1,4 +1,9 @@
+{-# LANGUAGE CPP #-}
 module Pinch.Internal.BuilderParserSpec (spec) where
+
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative
+#endif
 
 import Data.Monoid
 import Test.Hspec

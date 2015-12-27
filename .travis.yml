@@ -26,10 +26,8 @@ before_install:
 
 install:
     - ./scripts/travis_long stack --resolver $RESOLVER --no-terminal --skip-ghc-check setup
-    - ./scripts/travis_long ./scripts/install_deps.sh
+    - ./scripts/travis_long stack --resolver $RESOLVER --no-terminal --skip-ghc-check test --only-snapshot
 
 script:
     - stack --resolver $RESOLVER --no-terminal --skip-ghc-check test
-
-    # Ensure that the examples build.
-    - cd examples/keyvalue && stack --resolver $RESOLVER --no-terminal --skip-ghc-check build
+    - cd examples/keyvalue && ../../scripts/travis_long stack --resolver $RESOLVER --no-terminal --skip-ghc-check build
