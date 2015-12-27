@@ -34,11 +34,14 @@ newtype Parser a = Parser
     } -- TODO can probably track position in the struct
 
 instance Functor Parser where
+    {-# INLINE fmap #-}
     fmap f (Parser g) = Parser $ \kFail kSucc -> g kFail (kSucc . f)
 
 instance Applicative Parser where
+    {-# INLINE pure #-}
     pure a = Parser $ \_ kSucc -> kSucc a
 
+    {-# INLINE (<*>) #-}
     Parser f' <*> Parser a' =
         Parser $ \kFail kSuccB ->
             f' kFail $ \f ->
@@ -46,24 +49,35 @@ instance Applicative Parser where
                 kSuccB (f a)
 
 instance Alternative Parser where
+    {-# INLINE empty #-}
     empty = Parser $ \kFail _ -> kFail "Alternative.empty"
 
+    {-# INLINE (<|>) #-}
     Parser l' <|> Parser r' =
         Parser $ \kFail kSucc ->
             l' (\_ -> r' kFail kSucc) kSucc
 
 instance Monad Parser where
+    {-# INLINE fail #-}
     fail msg = Parser $ \kFail _ -> kFail msg
+
+    {-# INLINE return #-}
     return = pure
+
+    {-# INLINE (>>) #-}
     (>>) = (*>)
 
+    {-# INLINE (>>=) #-}
     Parser a' >>= k =
         Parser $ \kFail kSuccB ->
             a' kFail $ \a ->
             unParser (k a) kFail kSuccB
 
 instance MonadPlus Parser where
+    {-# INLINE mzero #-}
     mzero = empty
+
+    {-# INLINE mplus #-}
     mplus = (<|>)
 
 -- | Run a @Parser@ and return the result inside an @Either@.
@@ -73,4 +87,5 @@ runParser p = unParser p Left Right
 -- | Allows handling parse errors.
 parserCatch
     :: Parser a -> (String -> Parser b) -> (a -> Parser b) -> Parser b
-parserCatch (Parser a) = a
+parserCatch = unParser
+{-# INLINE parserCatch #-}

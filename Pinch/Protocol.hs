@@ -15,7 +15,7 @@ module Pinch.Protocol
     ( Protocol(..)
     ) where
 
-import Data.ByteString         (ByteString)
+import Data.ByteString (ByteString)
 
 import Pinch.Internal.Builder (Builder)
 import Pinch.Internal.Message (Message)

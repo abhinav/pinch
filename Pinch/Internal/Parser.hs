@@ -28,7 +28,7 @@ import Control.Applicative
 import Control.Monad
 
 import Control.Monad.ST (ST)
-import Data.Bits        (shiftL, (.|.))
+import Data.Bits        ((.|.))
 import Data.ByteString  (ByteString)
 import Data.Int         (Int16, Int32, Int64, Int8)
 import Prelude          hiding (take)
@@ -39,6 +39,7 @@ import qualified Data.Array.Unsafe      as A
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Unsafe as BU
 
+import Pinch.Internal.Bits
 
 -- | Failure continuation. Called with the failure message.
 type Failure   r = String          -> r
@@ -57,14 +58,17 @@ newtype Parser a = Parser
 
 
 instance Functor Parser where
+    {-# INLINE fmap #-}
     fmap f (Parser g) = Parser
         $ \b0 kFail kSucc -> g b0 kFail
         $ \b1 a -> kSucc b1 (f a)
 
 
 instance Applicative Parser where
+    {-# INLINE pure #-}
     pure a = Parser $ \b _ kSucc -> kSucc b a
 
+    {-# INLINE (<*>) #-}
     Parser f' <*> Parser a' = Parser
         $ \b0 kFail kSucc -> f' b0 kFail
         $ \b1 f -> a' b1 kFail
@@ -72,11 +76,16 @@ instance Applicative Parser where
 
 
 instance Monad Parser where
+    {-# INLINE return #-}
     return = pure
+
+    {-# INLINE (>>) #-}
     (>>) = (*>)
 
+    {-# INLINE fail #-}
     fail msg = Parser $ \_ kFail _ -> kFail msg
 
+    {-# INLINE (>>=) #-}
     Parser m >>= k = Parser
         $ \b0 kFail kSucc -> m b0 kFail
         $ \b1 a -> unParser (k a) b1 kFail kSucc
@@ -117,8 +126,8 @@ int16 :: Parser Int16
 int16 = mk <$> take 2
   where
     {-# INLINE mk #-}
-    mk b =
-        (fromIntegral (b `BU.unsafeIndex` 0) `shiftL` 8) .|.
+    mk b = fromIntegral $
+        (fromIntegral (b `BU.unsafeIndex` 0) `w16ShiftL` 8) .|.
          fromIntegral (b `BU.unsafeIndex` 1)
 {-# INLINE int16 #-}
 
@@ -128,10 +137,10 @@ int32 :: Parser Int32
 int32 = mk <$> take 4
   where
     {-# INLINE mk #-}
-    mk b =
-        (fromIntegral (b `BU.unsafeIndex` 0) `shiftL` 24) .|.
-        (fromIntegral (b `BU.unsafeIndex` 1) `shiftL` 16) .|.
-        (fromIntegral (b `BU.unsafeIndex` 2) `shiftL`  8) .|.
+    mk b = fromIntegral $
+        (fromIntegral (b `BU.unsafeIndex` 0) `w32ShiftL` 24) .|.
+        (fromIntegral (b `BU.unsafeIndex` 1) `w32ShiftL` 16) .|.
+        (fromIntegral (b `BU.unsafeIndex` 2) `w32ShiftL`  8) .|.
          fromIntegral (b `BU.unsafeIndex` 3)
 {-# INLINE int32 #-}
 
@@ -141,23 +150,21 @@ int64 :: Parser Int64
 int64 = mk <$> take 8
   where
     {-# INLINE mk #-}
-    mk b =
-        (fromIntegral (b `BU.unsafeIndex` 0) `shiftL` 56) .|.
-        (fromIntegral (b `BU.unsafeIndex` 1) `shiftL` 48) .|.
-        (fromIntegral (b `BU.unsafeIndex` 2) `shiftL` 40) .|.
-        (fromIntegral (b `BU.unsafeIndex` 3) `shiftL` 32) .|.
-        (fromIntegral (b `BU.unsafeIndex` 4) `shiftL` 24) .|.
-        (fromIntegral (b `BU.unsafeIndex` 5) `shiftL` 16) .|.
-        (fromIntegral (b `BU.unsafeIndex` 6) `shiftL`  8) .|.
+    mk b = fromIntegral $
+        (fromIntegral (b `BU.unsafeIndex` 0) `w64ShiftL` 56) .|.
+        (fromIntegral (b `BU.unsafeIndex` 1) `w64ShiftL` 48) .|.
+        (fromIntegral (b `BU.unsafeIndex` 2) `w64ShiftL` 40) .|.
+        (fromIntegral (b `BU.unsafeIndex` 3) `w64ShiftL` 32) .|.
+        (fromIntegral (b `BU.unsafeIndex` 4) `w64ShiftL` 24) .|.
+        (fromIntegral (b `BU.unsafeIndex` 5) `w64ShiftL` 16) .|.
+        (fromIntegral (b `BU.unsafeIndex` 6) `w64ShiftL`  8) .|.
          fromIntegral (b `BU.unsafeIndex` 7)
 {-# INLINE int64 #-}
 
 
 -- | Produces a 64-bit floating point number and advances the parser.
 double :: Parser Double
-double = do
-    i <- int64
-    return (ST.runST (cast i))
+double = int64 >>= \i -> return (ST.runST (cast i))
 {-# INLINE double #-}
 
 
