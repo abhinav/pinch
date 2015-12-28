@@ -23,12 +23,14 @@ pushd "$ROOT/gh-pages"
 git rm -rf .
 popd
 
+GHC_BIN="$(dirname "$(stack exec which ghc)")"
+
 pushd "$ROOT"
-runhaskell Setup.hs configure \
+PATH="$GHC_BIN:$PATH" runhaskell Setup.hs configure \
 	--package-db="$(stack path --local-pkg-db)" \
 	--package-db="$(stack path --snapshot-pkg-db)"
 
-runhaskell Setup.hs haddock \
+PATH="$GHC_BIN:$PATH" runhaskell Setup.hs haddock \
 	--haddock-options="--odir=gh-pages $OPTIONS" \
 	--html-location="http://hackage.haskell.org/packages/archive/\$pkg/latest/doc/html"
 popd
