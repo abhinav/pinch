@@ -12,7 +12,7 @@ executable keyvalue-server
   build-depends       : base
                       , bytestring
                       , containers
-                      , http-types  >= 0.8 && < 0.9
+                      , http-types
                       , text
                       , wai  >= 3.0 && < 4.0
                       , warp >= 3.0 && < 4.0
@@ -28,8 +28,8 @@ executable keyvalue-client
                       , bytestring
                       , containers
                       , exceptions
-                      , http-client >= 0.4 && < 0.5
-                      , http-types  >= 0.8 && < 0.9
+                      , http-client >= 0.4
+                      , http-types  >= 0.8
                       , text
 
                       , pinch
