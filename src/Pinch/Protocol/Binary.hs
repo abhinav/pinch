@@ -263,6 +263,7 @@ serializeStruct (VStruct fields) =
 {-# INLINE serializeStruct #-}
 
 serializeMap :: Value TMap -> Builder
+serializeMap VNullMap = error "serializeMap: VNullMap"
 serializeMap (VMap items) = serialize ttype ttype items
   where
     serialize

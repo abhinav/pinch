@@ -112,6 +112,7 @@ module Pinch
 
     , Protocol
     , binaryProtocol
+    , compactProtocol
 
     -- * TType
 
@@ -158,6 +159,7 @@ import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol
 import Pinch.Protocol.Binary
+import Pinch.Protocol.Compact
 
 ------------------------------------------------------------------------------
 
