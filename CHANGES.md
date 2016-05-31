@@ -1,3 +1,9 @@
+0.3.0.0 (unreleased)
+====================
+
+-   Add support for returning the leftover ByteString when parsing Thrift
+    payloads (#3).
+
 0.2.0.1 (2016-05-23)
 ====================
 
