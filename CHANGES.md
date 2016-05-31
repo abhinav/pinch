@@ -1,10 +1,10 @@
-0.2.0.1
-=======
+0.2.0.1 (2016-05-23)
+====================
 
 -   Build with GHC 8.
 
-0.2.0.0
-=======
+0.2.0.0 (2015-12-27)
+====================
 
 Breaking changes:
 
@@ -22,19 +22,19 @@ Other changes:
 -   Improve serialization and deserialization performance further by changing
     the intermediate representation of lists, sets, and maps.
 
-0.1.0.2
-=======
+0.1.0.2 (2015-12-27)
+====================
 
 -   Loosen `vector` version constraint.
 
-0.1.0.1
-=======
+0.1.0.1 (2015-11-15)
+====================
 
 -   Fixed recursion in C pre-processor expansion. This can break the build on
     some systems.
 
-0.1.0.0
-=======
+0.1.0.0 (2015-11-15)
+====================
 
 -   Initial release.
 
