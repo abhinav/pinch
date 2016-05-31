@@ -17,7 +17,7 @@ import Pinch.Internal.Message
 import Pinch.Internal.TType
 import Pinch.Internal.Util
 import Pinch.Internal.Value   (SomeValue (..), Value (..))
-import Pinch.Protocol         (Protocol (..))
+import Pinch.Protocol
 import Pinch.Protocol.Binary  (binaryProtocol)
 
 

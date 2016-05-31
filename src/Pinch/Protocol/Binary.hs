@@ -31,7 +31,7 @@ import qualified Data.Text.Encoding  as TE
 
 import Pinch.Internal.Builder (Builder)
 import Pinch.Internal.Message
-import Pinch.Internal.Parser  (Parser, runParser)
+import Pinch.Internal.Parser  (Parser, runParser, runParser')
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol         (Protocol (..))
@@ -45,7 +45,7 @@ import qualified Pinch.Internal.Parser   as P
 binaryProtocol :: Protocol
 binaryProtocol = Protocol
     { serializeValue     = binarySerialize
-    , deserializeValue   = binaryDeserialize ttype
+    , deserializeValue'  = binaryDeserialize ttype
     , serializeMessage   = binarySerializeMessage
     , deserializeMessage = binaryDeserializeMessage
     }
@@ -102,8 +102,8 @@ parseMessageType = P.int8 >>= \code -> case fromMessageCode code of
 
 ------------------------------------------------------------------------------
 
-binaryDeserialize :: TType a -> ByteString -> Either String (Value a)
-binaryDeserialize t = runParser (binaryParser t)
+binaryDeserialize :: TType a -> ByteString -> Either String (ByteString, Value a)
+binaryDeserialize t = runParser' (binaryParser t)
 
 binaryParser :: TType a -> Parser (Value a)
 binaryParser typ = case typ of

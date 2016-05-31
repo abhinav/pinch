@@ -13,6 +13,7 @@
 -- 'Pinch.Pinchable.Pinchable'.
 module Pinch.Protocol
     ( Protocol(..)
+    , deserializeValue
     ) where
 
 import Data.ByteString (ByteString)
@@ -33,9 +34,15 @@ data Protocol = Protocol
     --
     -- Returns a @Builder@ and the total length of the serialized content.
 
-    , deserializeValue
-        :: forall a. IsTType a => ByteString -> Either String (Value a)
-    -- ^ Reads a 'Value' from a ByteString.
+    , deserializeValue'
+        :: forall a. IsTType a => ByteString -> Either String (ByteString, Value a)
+    -- ^ Reads a 'Value' from a ByteString and returns leftovers from parse.
     , deserializeMessage :: ByteString -> Either String Message
     -- ^ Reads a 'Message' and its payload from a ByteString.
     }
+
+
+-- | Reads a 'Value' from a ByteString.
+deserializeValue :: forall a. IsTType a
+                 => Protocol -> ByteString -> Either String (Value a)
+deserializeValue proto = fmap snd . deserializeValue' proto

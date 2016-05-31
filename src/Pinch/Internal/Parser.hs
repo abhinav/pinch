@@ -15,6 +15,7 @@
 module Pinch.Internal.Parser
     ( Parser
     , runParser
+    , runParser'
 
     , int8
     , int16
@@ -96,6 +97,13 @@ instance Monad Parser where
 runParser :: Parser a -> ByteString -> Either String a
 runParser (Parser f) b = f b Left (const Right)
 {-# INLINE runParser #-}
+
+
+-- | Run the parser on the given ByteString. Return either the failure message
+-- or the result and any left-over content.
+runParser' :: Parser a -> ByteString -> Either String (ByteString, a)
+runParser' (Parser f) b = f b Left (\b' r -> Right (b', r))
+{-# INLINE runParser' #-}
 
 
 -- | @take n@ gets exactly @n@ bytes or fails the parse.
