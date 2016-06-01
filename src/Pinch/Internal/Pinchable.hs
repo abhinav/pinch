@@ -227,6 +227,7 @@ unpinchMap mapInsert mapEmpty (VMap xs) =
     FL.foldl' (\m (!k, !v) -> mapInsert k v m) mapEmpty <$> FL.mapM go xs
   where
     go (MapItem k v) = (,) <$> checkedUnpinch k <*> checkedUnpinch v
+unpinchMap _ mapEmpty VNullMap = return mapEmpty
 unpinchMap _ _ x = fail $ "Failed to read map. Got " ++ show x
 
 instance IsTType a => Pinchable (Value a) where

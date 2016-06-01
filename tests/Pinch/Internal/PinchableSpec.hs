@@ -307,6 +307,10 @@ containerSpec = do
                           (HM.fromList
                             [("a", 1), ("b", 2) :: (ByteString, Int16)])
 
+        it "can unpinch empty maps" $
+            unpinch' V.VNullMap `shouldBe`
+                Right (HM.empty :: HashMap ByteString Int16)
+
         it "rejects key type mismatch" $
           (unpinch' :: V.Value T.TMap -> Either String (HashMap Int32 Int16))
               (vmap [(vbin "a", vi16 1)])
@@ -334,6 +338,10 @@ containerSpec = do
                         Right
                           (M.fromList
                             [("a", 1), ("b", 2) :: (ByteString, Int16)])
+
+        it "can unpinch empty maps" $
+            unpinch' V.VNullMap `shouldBe`
+                Right (M.empty :: Map ByteString Int16)
 
         it "rejects key type mismatch" $
           (unpinch' :: V.Value T.TMap -> Either String (Map Int32 Int16))
