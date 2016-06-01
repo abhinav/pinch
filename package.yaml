@@ -54,6 +54,7 @@ library:
     - Pinch.Internal.Value
     - Pinch.Protocol
     - Pinch.Protocol.Binary
+    - Pinch.Protocol.Compact
   dependencies:
     - array >= 0.5
     - deepseq >= 1.3 && < 1.5

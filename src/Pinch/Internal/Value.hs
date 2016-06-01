@@ -126,6 +126,7 @@ instance NFData (Value a) where
     rnf (VBinary a) = rnf a
     rnf (VStruct a) = rnf a
     rnf (VMap   as) = rnf as
+    rnf VNullMap    = ()
     rnf (VSet   as) = rnf as
     rnf (VList  as) = rnf as
 
