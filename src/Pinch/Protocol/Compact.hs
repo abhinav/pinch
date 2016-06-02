@@ -239,8 +239,7 @@ compactSerialize = case (ttype :: TType a) of
 {-# INLINE compactSerialize #-}
 
 serializeBinary :: Value TBinary -> Builder
-serializeBinary (VBinary x) =
-    serializeVarint (fromIntegral $ B.length x) <> BB.byteString x
+serializeBinary (VBinary x) = string x
 {-# INLINE serializeBinary #-}
 
 serializeBool :: Value TBool -> Builder
