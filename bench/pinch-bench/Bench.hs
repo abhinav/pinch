@@ -152,38 +152,57 @@ instance P.Pinchable Struct where
 main :: IO ()
 main = defaultMain
     [ bgroup "A"
-        [ env (generate :: IO A) $ \a -> bench "encode" $ whnf encode a
-        , env generateEncodedA $ \bs -> bench "decode" $
-            nf (P.decode P.binaryProtocol :: ByteString -> Either String A) bs
+        [ env (generate :: IO A) $ \a -> bgroup "encode"
+            [ bench "binary"  $ whnf (P.encode P.binaryProtocol) a
+            , bench "compact" $ whnf (P.encode P.compactProtocol) a
+            ]
+        , bgroup "decode"
+            [ env (generateEncodedA P.binaryProtocol) $ \bs -> bench "binary" $
+                nf (P.decode P.binaryProtocol :: ByteString -> Either String A) bs
+            , env (generateEncodedA P.compactProtocol) $ \bs -> bench "compact" $
+                nf (P.decode P.compactProtocol :: ByteString -> Either String A) bs
+            ]
         ]
     , bgroup "NestedMixed"
-        [ env generateNestedMixedFields $ \ ~(f1, f2, f3) -> bench "encode" $
-            whnf encode (NestedMixed f1 f2 f3)
-        , env generateEncodedNestedMixed $ \bs -> bench "decode" $
-            nf (P.decode P.binaryProtocol :: ByteString -> Either String NestedMixed) bs
+        [ env generateNestedMixedFields $ \ ~(f1, f2, f3) -> bgroup "encode"
+            [ bench "binary" $
+                whnf (P.encode P.binaryProtocol) (NestedMixed f1 f2 f3)
+            , bench "compact" $
+                whnf (P.encode P.compactProtocol) (NestedMixed f1 f2 f3)
+            ]
+        , bgroup "decode"
+            [ env (generateEncodedNestedMixed P.binaryProtocol) $ \bs -> bench "binary" $
+                nf (P.decode P.binaryProtocol :: ByteString -> Either String NestedMixed) bs
+            , env (generateEncodedNestedMixed P.compactProtocol) $ \bs -> bench "compact" $
+                nf (P.decode P.compactProtocol :: ByteString -> Either String NestedMixed) bs
+            ]
+
         ]
     , bgroup "Struct"
-        [ env structFields $ \ ~(f1, f2, f3) -> bench "encode" $
-            whnf encode (Struct f1 f2 f3)
-        , env generateEncodedStruct $ \bs -> bench "deode" $
-            nf (P.decode P.binaryProtocol :: ByteString -> Either String Struct) bs
+        [ env structFields $ \ ~(f1, f2, f3) -> bgroup "encode"
+            [ bench "binary" $ whnf (P.encode P.binaryProtocol) (Struct f1 f2 f3)
+            , bench "compact" $ whnf (P.encode P.compactProtocol) (Struct f1 f2 f3)
+            ]
+        , bgroup "decode"
+            [ env (generateEncodedStruct P.binaryProtocol) $ \bs -> bench "binary" $
+                nf (P.decode P.binaryProtocol :: ByteString -> Either String Struct) bs
+            , env (generateEncodedStruct P.compactProtocol) $ \bs -> bench "compact" $
+                nf (P.decode P.compactProtocol :: ByteString -> Either String Struct) bs
+            ]
         ]
     ]
   where
-    generateEncodedNestedMixed = bracket_ stopProfTimer startProfTimer $ do
+    generateEncodedNestedMixed proto = bracket_ stopProfTimer startProfTimer $ do
         (f1, f2, f3) <- generateNestedMixedFields
-        return $ P.encode P.binaryProtocol (NestedMixed f1 f2 f3)
+        return $ P.encode proto (NestedMixed f1 f2 f3)
 
-    generateEncodedA = bracket_ stopProfTimer startProfTimer $ do
+    generateEncodedA proto = bracket_ stopProfTimer startProfTimer $ do
         a <- generate :: IO A
-        return $ P.encode P.binaryProtocol a
+        return $ P.encode proto a
 
-    generateEncodedStruct = bracket_ stopProfTimer startProfTimer $ do
+    generateEncodedStruct proto = bracket_ stopProfTimer startProfTimer $ do
         (f1, f2, f3) <- structFields
-        return $ P.encode P.binaryProtocol (Struct f1 f2 f3)
+        return $ P.encode proto (Struct f1 f2 f3)
 
     generate :: QC.Arbitrary a => IO a
     generate = QC.generate QC.arbitrary
-
-    encode :: P.Pinchable a => a -> ByteString
-    encode = P.encode P.binaryProtocol
