@@ -48,10 +48,10 @@ import qualified Pinch.Internal.Parser   as P
 -- | Provides an implementation of the Thrift Compact Protocol.
 compactProtocol :: Protocol
 compactProtocol = Protocol
-    { serializeValue     = binarySerialize
-    , deserializeValue'  = binaryDeserialize ttype
-    , serializeMessage   = binarySerializeMessage
-    , deserializeMessage = binaryDeserializeMessage
+    { serializeValue     = compactSerialize
+    , deserializeValue'  = compactDeserialize ttype
+    , serializeMessage   = compactSerializeMessage
+    , deserializeMessage = compactDeserializeMessage
     }
 
 ------------------------------------------------------------------------------
@@ -63,19 +63,19 @@ protocolId, version :: Word8
 protocolId = 0x82
 version = 0x01
 
-binarySerializeMessage :: Message -> Builder
-binarySerializeMessage msg =
+compactSerializeMessage :: Message -> Builder
+compactSerializeMessage msg =
     bword8 protocolId <>
     bword8 ((version .&. 0x1f) .|. (messageCode (messageType msg) `shiftL` 5)) <>
     serializeVarint (fromIntegral $ messageId msg) <>
     string (TE.encodeUtf8 $ messageName msg) <>
-    binarySerialize (messagePayload msg)
+    compactSerialize (messagePayload msg)
 
-binaryDeserializeMessage :: ByteString -> Either String Message
-binaryDeserializeMessage = runParser binaryMessageParser
+compactDeserializeMessage :: ByteString -> Either String Message
+compactDeserializeMessage = runParser compactMessageParser
 
-binaryMessageParser :: Parser Message
-binaryMessageParser = do
+compactMessageParser :: Parser Message
+compactMessageParser = do
     pid <- P.word8
     when (pid /= protocolId) $ fail "Invalid protocol ID"
     w <- P.word8
@@ -84,7 +84,7 @@ binaryMessageParser = do
     let code = w `shiftR` 5
     msgId <- parseVarint
     msgName <- TE.decodeUtf8 <$> (parseVarint >>= P.take . fromIntegral)
-    payload <- binaryParser ttype
+    payload <- compactParser ttype
     return Message { messageType = case fromMessageCode code of
                                      Nothing -> error $ "unknown message type: " ++ show code
                                      Just t -> t
@@ -96,11 +96,11 @@ binaryMessageParser = do
 
 ------------------------------------------------------------------------------
 
-binaryDeserialize :: TType a -> ByteString -> Either String (ByteString, Value a)
-binaryDeserialize t = runParser' (binaryParser t)
+compactDeserialize :: TType a -> ByteString -> Either String (ByteString, Value a)
+compactDeserialize t = runParser' (compactParser t)
 
-binaryParser :: TType a -> Parser (Value a)
-binaryParser typ = case typ of
+compactParser :: TType a -> Parser (Value a)
+compactParser typ = case typ of
   TBool      -> do
       n <- P.int8
       return $ VBool (n == 1)
@@ -178,8 +178,8 @@ parseMap = do
               ktype <- pure $ cTypeToTType kctype
               vtype <- pure $ cTypeToTType vctype
               items <- FL.replicateM (fromIntegral count) $
-                  MapItem <$> binaryParser ktype
-                          <*> binaryParser vtype
+                  MapItem <$> compactParser ktype
+                          <*> compactParser vtype
               return $ VMap items
 
 
@@ -194,7 +194,7 @@ parseSet = do
     case ctype' of
       SomeCType ctype -> do
           vtype <- pure $ cTypeToTType ctype
-          VSet <$> FL.replicateM (fromIntegral count) (binaryParser vtype)
+          VSet <$> FL.replicateM (fromIntegral count) (compactParser vtype)
 
 
 parseList :: Parser (Value TList)
@@ -208,7 +208,7 @@ parseList = do
     case ctype' of
       SomeCType ctype -> do
           vtype <- pure $ cTypeToTType ctype
-          VList <$> FL.replicateM (fromIntegral count) (binaryParser vtype)
+          VList <$> FL.replicateM (fromIntegral count) (compactParser vtype)
 
 
 parseStruct :: Parser (Value TStruct)
@@ -230,14 +230,14 @@ parseStruct = loop M.empty 0
                   SomeCType CBoolFalse -> return (SomeValue $ VBool False)
                   SomeCType ctype      -> do
                       vtype <- return $ cTypeToTType ctype
-                      SomeValue <$> binaryParser vtype
+                      SomeValue <$> compactParser vtype
                 loop (M.insert fieldId value fields) fieldId
 
 
 ------------------------------------------------------------------------------
 
-binarySerialize :: forall a. IsTType a => Value a -> Builder
-binarySerialize = case (ttype :: TType a) of
+compactSerialize :: forall a. IsTType a => Value a -> Builder
+compactSerialize = case (ttype :: TType a) of
   TBinary  -> serializeBinary
   TBool    -> serializeBool
   TByte    -> serializeByte
@@ -249,7 +249,7 @@ binarySerialize = case (ttype :: TType a) of
   TList    -> serializeList
   TMap     -> serializeMap
   TSet     -> serializeSet
-{-# INLINE binarySerialize #-}
+{-# INLINE compactSerialize #-}
 
 serializeBinary :: Value TBinary -> Builder
 serializeBinary (VBinary x) =
@@ -310,7 +310,7 @@ serializeStruct (VStruct fields) =
                   SomeValue (VBool True)  -> writeFieldHeader CBoolTrue
                   SomeValue (VBool False) -> writeFieldHeader CBoolFalse
                   SomeValue (v :: Value a) ->
-                      writeFieldHeader (tTypeToCType (ttype :: TType a)) <> binarySerialize v
+                      writeFieldHeader (tTypeToCType (ttype :: TType a)) <> compactSerialize v
         in x <> loop fieldId rest
       where
         writeFieldHeader :: CType a -> Builder
@@ -337,7 +337,7 @@ serializeMap (VMap items) = serialize ttype ttype items
         typeByte = (code kt `shiftL` 4) .|. (code vt)
         (body, size) = FL.foldl' go (mempty, 0 :: Int32) xs
         go (prev, !c) (MapItem k v) =
-            ( prev <> binarySerialize k <> binarySerialize v
+            ( prev <> compactSerialize k <> compactSerialize v
             , c + 1
             )
 {-# INLINE serializeMap #-}
@@ -346,7 +346,7 @@ serializeCollection
     :: IsTType a
     => TType a -> FL.FoldList (Value a) -> Builder
 serializeCollection vtype xs =
-    let go (prev, !c) item = (prev <> binarySerialize item, c + 1)
+    let go (prev, !c) item = (prev <> compactSerialize item, c + 1)
         (body, size) = FL.foldl' go (mempty, 0 :: Int32) xs
         type_and_size
           | size < 15 = typeCode' vtype (fromIntegral size)
