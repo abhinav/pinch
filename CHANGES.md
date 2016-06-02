@@ -1,6 +1,7 @@
 0.3.0.0 (unreleased)
 ====================
 
+-   Add support for the Thrift Compact Protocol (#2).
 -   Add support for returning the leftover ByteString when parsing Thrift
     payloads (#3).
 

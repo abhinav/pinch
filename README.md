@@ -69,11 +69,17 @@ decode binaryProtocol (encode binaryProtocol person) == person
 
 For more information, check the documentation and the examples.
 
+Supported Protocols
+-------------------
+
+The following Thrift protocols are supported:
+
+-   Binary
+-   Compact
+
 Caveats
 -------
 
--   Only the Thrift Binary Protocol is supported right now. (Pull
-    requests welcome.)
 -   There is no code generation or template haskell support yet so types from
     the Thrift file will have to be translated by hand.
 
