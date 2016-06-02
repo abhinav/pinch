@@ -81,9 +81,10 @@ compactMessageParser = do
     msgId <- parseVarint
     msgName <- TE.decodeUtf8 <$> (parseVarint >>= P.take . fromIntegral)
     payload <- compactParser ttype
-    return Message { messageType = case fromMessageCode code of
-                                     Nothing -> error $ "unknown message type: " ++ show code
-                                     Just t -> t
+    mtype <- case fromMessageCode code of
+        Nothing -> fail $ "unknown message type: " ++ show code
+        Just t -> return t
+    return Message { messageType = mtype
                    , messageId = fromIntegral msgId
                    , messageName = msgName
                    , messagePayload = payload
