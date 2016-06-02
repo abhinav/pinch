@@ -157,7 +157,8 @@ parseInt64 = VInt64 . fromIntegral . zigZagToInt <$> parseVarint
 parseBinary :: Parser (Value TBinary)
 parseBinary = do
     n <- parseVarint
-    when (n < 0) $ fail "parseBinary: invalid length"
+    when (n < 0) $
+        fail $ "parseBinary: invalid length " ++ show n
     VBinary <$> P.take (fromIntegral n)
 
 
