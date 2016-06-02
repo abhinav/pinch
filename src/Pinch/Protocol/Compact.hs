@@ -23,7 +23,6 @@ import Data.List           (sortBy)
 import Data.Ord            (comparing)
 import Data.Bits           hiding (shift)
 import Data.ByteString     (ByteString)
-import Data.Foldable       (null)
 import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int64)
 import Data.Word           (Word64, Word8)
@@ -326,7 +325,7 @@ serializeMap (VMap items) = serialize ttype ttype items
         :: (IsTType k, IsTType v)
         => TType k -> TType v -> FL.FoldList (MapItem k v) -> Builder
     serialize _  _  xs
-      | null xs        = BB.int8 0
+      | FL.null xs        = BB.int8 0
     serialize kt vt xs =
         serializeVarint (fromIntegral size) <> BB.word8 typeByte <> body
       where
