@@ -56,17 +56,14 @@ compactProtocol = Protocol
 
 ------------------------------------------------------------------------------
 
-bword8 :: Word8 -> Builder
-bword8 = BB.int8 . fromIntegral
-
 protocolId, version :: Word8
 protocolId = 0x82
 version = 0x01
 
 compactSerializeMessage :: Message -> Builder
 compactSerializeMessage msg =
-    bword8 protocolId <>
-    bword8 ((version .&. 0x1f) .|. (messageCode (messageType msg) `shiftL` 5)) <>
+    BB.word8 protocolId <>
+    BB.word8 ((version .&. 0x1f) .|. (messageCode (messageType msg) `shiftL` 5)) <>
     serializeVarint (fromIntegral $ messageId msg) <>
     string (TE.encodeUtf8 $ messageName msg) <>
     compactSerialize (messagePayload msg)
@@ -275,9 +272,9 @@ serializeVarint = go . fromIntegral
     go :: Word64 -> Builder
     go n
       | complement 0x7f .&. n == 0 =
-        bword8 $ fromIntegral n
+        BB.word8 $ fromIntegral n
       | otherwise =
-        bword8 (0x80 .|. (fromIntegral n .&. 0x7f)) <>
+        BB.word8 (0x80 .|. (fromIntegral n .&. 0x7f)) <>
         go (n `shiftR` 7)
 
 serializeInt16 :: Value TInt16 -> Builder
@@ -331,7 +328,7 @@ serializeMap (VMap items) = serialize ttype ttype items
     serialize _  _  xs
       | null xs        = BB.int8 0
     serialize kt vt xs =
-        serializeVarint (fromIntegral size) <> bword8 typeByte <> body
+        serializeVarint (fromIntegral size) <> BB.word8 typeByte <> body
       where
         code = toCompactCode . tTypeToCType
         typeByte = (code kt `shiftL` 4) .|. (code vt)
@@ -472,14 +469,14 @@ string b = serializeVarint (fromIntegral $ B.length b) <> BB.byteString b
 {-# INLINE string #-}
 
 compactCode :: CType a -> Builder
-compactCode = bword8 . toCompactCode
+compactCode = BB.word8 . toCompactCode
 {-# INLINE compactCode #-}
 
 compactCode' :: CType a  -- ^ The compact type code
              -> Word8    -- ^ a four-bit (unshifted) payload
              -> Builder
 compactCode' ty payload =
-    bword8 (toCompactCode ty .|. (fromIntegral payload `shiftL` 4))
+    BB.word8 (toCompactCode ty .|. (fromIntegral payload `shiftL` 4))
 {-# INLINE compactCode' #-}
 
 typeCode' :: TType a -> Word8 -> Builder
