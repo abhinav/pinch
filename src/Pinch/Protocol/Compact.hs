@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE GADTs               #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- |
 -- Module      :  Pinch.Protocol.Compact
@@ -19,14 +20,14 @@ import Control.Applicative
 #endif
 
 import Control.Monad
-import Data.List           (sortBy)
-import Data.Ord            (comparing)
 import Data.Bits           hiding (shift)
 import Data.ByteString     (ByteString)
 import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int64)
-import Data.Word           (Word64, Word8)
+import Data.List           (sortBy)
 import Data.Monoid
+import Data.Ord            (comparing)
+import Data.Word           (Word64, Word8)
 
 import qualified Data.ByteString     as B
 import qualified Data.HashMap.Strict as M
@@ -167,67 +168,55 @@ parseMap = do
       0 -> return VNullMap
       _ -> do
           tys <- P.word8
-          ktype' <- getCType (tys `shiftR` 4)
-          vtype' <- getCType (tys .&. 0x0f)
+          SomeCType kctype <- getCType (tys `shiftR` 4)
+          SomeCType vctype <- getCType (tys .&. 0x0f)
 
-          case (ktype', vtype') of
-            (SomeCType kctype, SomeCType vctype) -> do
-              ktype <- pure $ cTypeToTType kctype
-              vtype <- pure $ cTypeToTType vctype
-              items <- FL.replicateM (fromIntegral count) $
-                  MapItem <$> compactParser ktype
-                          <*> compactParser vtype
-              return $ VMap items
+          let ktype = cTypeToTType kctype
+              vtype = cTypeToTType vctype
 
+          items <- FL.replicateM (fromIntegral count) $
+              MapItem <$> compactParser ktype
+                      <*> compactParser vtype
+          return $ VMap items
+
+
+parseCollection
+    :: (forall a. IsTType a => FL.FoldList (Value a) -> Value b)
+    -> Parser (Value b)
+parseCollection buildValue = do
+    sizeAndType <- P.word8
+    SomeCType ctype <- getCType (sizeAndType .&. 0x0f)
+    count <- case sizeAndType `shiftR` 4 of
+                 0xf -> parseVarint
+                 n   -> return $ fromIntegral n
+    let vtype  = cTypeToTType ctype
+    buildValue <$> FL.replicateM (fromIntegral count) (compactParser vtype)
 
 parseSet :: Parser (Value TSet)
-parseSet = do
-    size_and_type <- P.word8
-    ctype' <- getCType (size_and_type .&. 0x0f)
-    count <- case size_and_type `shiftR` 4 of
-                 0xf -> parseVarint
-                 n   -> return $ fromIntegral n
-
-    case ctype' of
-      SomeCType ctype -> do
-          vtype <- pure $ cTypeToTType ctype
-          VSet <$> FL.replicateM (fromIntegral count) (compactParser vtype)
-
+parseSet = parseCollection VSet
 
 parseList :: Parser (Value TList)
-parseList = do
-    size_and_type <- P.word8
-    ctype' <- getCType (size_and_type .&. 0x0f)
-    count <- case size_and_type `shiftR` 4 of
-                 0xf -> parseVarint
-                 n   -> return $ fromIntegral n
-
-    case ctype' of
-      SomeCType ctype -> do
-          vtype <- pure $ cTypeToTType ctype
-          VList <$> FL.replicateM (fromIntegral count) (compactParser vtype)
-
+parseList = parseCollection VList
 
 parseStruct :: Parser (Value TStruct)
 parseStruct = loop M.empty 0
   where
     loop :: HashMap Int16 SomeValue -> Int16 -> Parser (Value TStruct)
     loop fields lastFieldId = do
-        size_and_type <- P.word8
-        ctype' <- getCType (size_and_type .&. 0x0f)
-        case ctype' of
-            SomeCType CStop -> return (VStruct fields)
+        sizeAndType <- P.word8
+        SomeCType ctype <- getCType (sizeAndType .&. 0x0f)
+        case ctype of
+            CStop -> return (VStruct fields)
             _     -> do
-                fieldId <- case size_and_type `shiftR` 4 of
+                fieldId <- case sizeAndType `shiftR` 4 of
                                0x0 -> fromIntegral . zigZagToInt <$> parseVarint
                                n   -> return (lastFieldId + fromIntegral n)
-
-                value <- case ctype' of
-                  SomeCType CBoolTrue  -> return (SomeValue $ VBool True)
-                  SomeCType CBoolFalse -> return (SomeValue $ VBool False)
-                  SomeCType ctype      -> do
-                      vtype <- return $ cTypeToTType ctype
-                      SomeValue <$> compactParser vtype
+                value <- case ctype of
+                  CBoolTrue  -> return (SomeValue $ VBool True)
+                  CBoolFalse -> return (SomeValue $ VBool False)
+                  _          ->
+                    let vtype = cTypeToTType ctype
+                     in SomeValue <$> compactParser vtype
                 loop (M.insert fieldId value fields) fieldId
 
 
@@ -331,7 +320,7 @@ serializeMap (VMap items) = serialize ttype ttype items
         serializeVarint (fromIntegral size) <> BB.word8 typeByte <> body
       where
         code = toCompactCode . tTypeToCType
-        typeByte = (code kt `shiftL` 4) .|. (code vt)
+        typeByte = (code kt `shiftL` 4) .|. code vt
         (body, size) = FL.foldl' go (mempty, 0 :: Int32) xs
         go (prev, !c) (MapItem k v) =
             ( prev <> compactSerialize k <> compactSerialize v
@@ -480,5 +469,5 @@ compactCode' ty payload =
 {-# INLINE compactCode' #-}
 
 typeCode' :: TType a -> Word8 -> Builder
-typeCode' ty payload = compactCode' (tTypeToCType ty) payload
+typeCode' ty = compactCode' (tTypeToCType ty)
 {-# INLINE typeCode' #-}
