@@ -314,10 +314,10 @@ serializeMap (VMap items) = serialize ttype ttype items
     serialize
         :: (IsTType k, IsTType v)
         => TType k -> TType v -> FL.FoldList (MapItem k v) -> Builder
-    serialize _  _  xs
-      | FL.null xs        = BB.int8 0
-    serialize kt vt xs =
-        serializeVarint (fromIntegral size) <> BB.word8 typeByte <> body
+    serialize kt vt xs
+        | size == 0 = BB.int8 0
+        | otherwise =
+            serializeVarint (fromIntegral size) <> BB.word8 typeByte <> body
       where
         code = toCompactCode . tTypeToCType
         typeByte = (code kt `shiftL` 4) .|. code vt

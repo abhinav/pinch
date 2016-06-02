@@ -14,7 +14,6 @@
 module Pinch.Internal.FoldList
     ( FoldList
     , map
-    , null
     , replicate
     , replicateM
     , F.foldl'
@@ -26,7 +25,7 @@ module Pinch.Internal.FoldList
     , T.sequence
     ) where
 
-import Prelude hiding (foldr, map, mapM, null, replicate, sequence)
+import Prelude hiding (foldr, map, mapM, replicate, sequence)
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
@@ -67,10 +66,6 @@ fromFoldable :: F.Foldable f => f a -> FoldList a
 fromFoldable l = FoldList (\k r -> F.foldl' k r l)
 {-# INLINE fromFoldable #-}
 
-null :: FoldList a -> Bool
-null (FoldList f) = f (\_ _ -> False) True
-{-# INLINE null #-}
-
 -- | Applies the given function to all elements in the FoldList.
 --
 -- Note that the function is applied lazily when the results are requested. If
@@ -88,7 +83,7 @@ replicate n a = fromFoldable (L.replicate n a)
 -- | Executes the given monadic action the given number of times and returns
 -- a FoldList of the results.
 replicateM :: Monad m => Int -> m a -> m (FoldList a)
-replicateM n = fmap fromFoldable . M.replicateM n
+replicateM n = M.liftM fromFoldable . M.replicateM n
 {-# INLINE replicateM #-}
 
 instance Show a => Show (FoldList a) where
