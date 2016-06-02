@@ -18,6 +18,7 @@ module Pinch.Internal.Parser
     , runParser'
 
     , int8
+    , word8
     , int16
     , int32
     , int64
@@ -32,6 +33,7 @@ import Control.Monad.ST (ST)
 import Data.Bits        ((.|.))
 import Data.ByteString  (ByteString)
 import Data.Int         (Int16, Int32, Int64, Int8)
+import Data.Word        (Word8)
 import Prelude          hiding (take)
 
 import qualified Control.Monad.ST       as ST
@@ -127,6 +129,12 @@ int8 = Parser
         Nothing -> kFail "Input is too short. Expected 1 bytes. Got 0 bytes."
         Just (w, b1) -> kSucc b1 (fromIntegral w)
 {-# INLINE int8 #-}
+
+
+-- | Produces the next byte and advances the parser.
+word8 :: Parser Word8
+word8 = fromIntegral <$> int8
+{-# INLINE word8 #-}
 
 
 -- | Produces a signed 16-bit integer and advances the parser.

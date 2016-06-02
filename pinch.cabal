@@ -70,6 +70,7 @@ library
         Pinch.Internal.Value
         Pinch.Protocol
         Pinch.Protocol.Binary
+        Pinch.Protocol.Compact
     other-modules:
         Pinch.Internal.Bits
         Pinch.Internal.Pinchable.Parser
@@ -106,4 +107,5 @@ test-suite pinch-spec
         Pinch.Internal.Util
         Pinch.Internal.ValueSpec
         Pinch.Protocol.BinarySpec
+        Pinch.Protocol.CompactSpec
     default-language: Haskell2010

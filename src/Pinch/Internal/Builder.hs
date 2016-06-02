@@ -17,6 +17,7 @@ module Pinch.Internal.Builder
 
     , append
     , int8
+    , word8
     , int16BE
     , int32BE
     , int64BE
@@ -94,6 +95,11 @@ primFixed prim a = B (BPI.size prim) (BPI.runF prim a)
 int8 :: Int8 -> Builder
 int8 = primFixed BP.int8
 {-# INLINE int8 #-}
+
+-- | Serialize a single unsigned byte.
+word8 :: Word8 -> Builder
+word8 = primFixed BP.word8
+{-# INLINE word8 #-}
 
 -- | Serialize a signed 16-bit integer in big endian format.
 int16BE :: Int16 -> Builder

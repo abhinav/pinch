@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE RankNTypes          #-}
@@ -21,6 +22,10 @@ module Pinch.Internal.Value
     , castValue
     , valueTType
     ) where
+
+#if __GLASGOW_HASKELL__ < 709
+import Data.Monoid (mempty)
+#endif
 
 import Control.DeepSeq     (NFData (..))
 import Data.ByteString     (ByteString)
@@ -70,6 +75,7 @@ data Value a where
 
     VMap  :: forall k v. (IsTType k, IsTType v)
           => !(FoldList (MapItem k v)) -> Value TMap
+    VNullMap :: Value TMap
     VSet  :: forall a. IsTType a => !(FoldList (Value a)) -> Value TSet
     VList :: forall a. IsTType a => !(FoldList (Value a)) -> Value TList
   deriving Typeable
@@ -89,6 +95,7 @@ instance Show (Value a) where
         go xs i (SomeValue val) = (show i ++ ": " ++ show val):xs
 
     show (VMap x) = show x
+    show VNullMap = "[]"
     show (VSet  x) = show x
     show (VList x) = show x
 
@@ -105,8 +112,10 @@ instance Eq (Value a) where
     VList as == VList bs = areEqual1 as bs
     VMap as == VMap  bs = areEqual2 (toMap as) (toMap bs)
       where
-        toMap = F.foldl' (\m (MapItem k v) -> M.insert k v m) M.empty
-    VSet as == VSet  bs = areEqual1 (toSet as) (toSet bs)
+        toMap = M.toList . F.foldl' (\m (MapItem k v) -> M.insert k v m) M.empty
+    VNullMap == VMap xs  = mempty == xs
+    VMap xs  == VNullMap = xs == mempty
+    VSet as  == VSet bs  = areEqual1 (toSet as) (toSet bs)
     _ == _ = False
 
 toSet :: forall f x. (F.Foldable f, Hashable x, Eq x) => f x -> S.HashSet x
@@ -122,6 +131,7 @@ instance NFData (Value a) where
     rnf (VBinary a) = rnf a
     rnf (VStruct a) = rnf a
     rnf (VMap   as) = rnf as
+    rnf VNullMap    = ()
     rnf (VSet   as) = rnf as
     rnf (VList  as) = rnf as
 
@@ -143,8 +153,8 @@ instance NFData SomeValue where
 
 -- | Safely attempt to cast a Value into another.
 castValue :: forall a b. (IsTType a, IsTType b) => Value a -> Maybe (Value b)
-castValue v = case ttypeEqT of
-    Just (Refl :: a :~: b) -> Just v
+castValue v = case ttypeEqT :: Maybe (a :~: b) of
+    Just Refl -> Just v
     Nothing -> Nothing
 {-# INLINE castValue #-}
 
@@ -155,13 +165,13 @@ valueTType _ = ttype
 
 areEqual
     :: forall a b. (IsTType a, IsTType b) => Value a -> Value b -> Bool
-areEqual l r = case ttypeEqT of
-    Just (Refl :: a :~: b) -> l == r
+areEqual l r = case ttypeEqT :: Maybe (a :~: b) of
+    Just Refl -> l == r
     Nothing -> False
 {-# INLINE areEqual #-}
 
 areEqual1
-    :: forall a b f. (IsTType a, IsTType b, Eq (f (Value a)))
+    :: forall a b f. (IsTType a, IsTType b, F.Foldable f, Eq (f (Value a)))
     => f (Value a) -> f (Value b) -> Bool
 areEqual1 l r = case ttypeEqT of
     Just (Refl :: a :~: b) -> l == r
@@ -169,10 +179,9 @@ areEqual1 l r = case ttypeEqT of
 {-# INLINE areEqual1 #-}
 
 areEqual2
-    :: forall f k1 v1 k2 v2.
+    :: forall k1 v1 k2 v2.
     ( IsTType k1, IsTType v1, IsTType k2, IsTType v2
-    , Eq (f (Value k1) (Value v1))
-    ) => f (Value k1) (Value v1) -> f (Value k2) (Value v2) -> Bool
+    ) => [(Value k1, Value v1)] -> [(Value k2, Value v2)] -> Bool
 areEqual2 l r = case ttypeEqT of
     Just (Refl :: k1 :~: k2) -> case ttypeEqT of
         Just (Refl :: v1 :~: v2) -> l == r
@@ -191,6 +200,7 @@ instance Hashable (Value a) where
       VInt64  x -> s `hashWithSalt` (6 :: Int) `hashWithSalt` x
       VList   x -> s `hashWithSalt` (7 :: Int) `hashWithSalt` x
       VMap    x -> s `hashWithSalt` (8 :: Int) `hashWithSalt` x
+      VNullMap  -> s `hashWithSalt` (8 :: Int)
       VSet    x -> s `hashWithSalt` (9 :: Int) `hashWithSalt` x
 
       VStruct fields ->
