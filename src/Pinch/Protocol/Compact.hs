@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -27,6 +28,7 @@ import Data.Int            (Int16, Int32, Int64)
 import Data.List           (sortBy)
 import Data.Monoid
 import Data.Ord            (comparing)
+import Data.Typeable       (Typeable)
 import Data.Word           (Word64, Word8)
 
 import qualified Data.ByteString     as B
@@ -360,7 +362,7 @@ fromMessageCode _ = Nothing
 {-# INLINE fromMessageCode #-}
 
 
-data TStop
+data TStop deriving (Typeable)
 
 instance IsTType TStop where
     ttype = error "ttype TStop"

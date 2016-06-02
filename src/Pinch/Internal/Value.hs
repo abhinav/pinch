@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE RankNTypes          #-}
@@ -21,6 +22,10 @@ module Pinch.Internal.Value
     , castValue
     , valueTType
     ) where
+
+#if __GLASGOW_HASKELL__ < 709
+import Data.Monoid (mempty)
+#endif
 
 import Control.DeepSeq     (NFData (..))
 import Data.ByteString     (ByteString)
@@ -108,8 +113,8 @@ instance Eq (Value a) where
     VMap as == VMap  bs = areEqual2 (toMap as) (toMap bs)
       where
         toMap = M.toList . F.foldl' (\m (MapItem k v) -> M.insert k v m) M.empty
-    VNullMap == VMap xs  = null xs
-    VMap xs  == VNullMap = null xs
+    VNullMap == VMap xs  = mempty == xs
+    VMap xs  == VNullMap = xs == mempty
     VSet as  == VSet bs  = areEqual1 (toSet as) (toSet bs)
     _ == _ = False
 
@@ -166,7 +171,7 @@ areEqual l r = case ttypeEqT :: Maybe (a :~: b) of
 {-# INLINE areEqual #-}
 
 areEqual1
-    :: forall a b f. (IsTType a, IsTType b, Foldable f, Eq (f (Value a)))
+    :: forall a b f. (IsTType a, IsTType b, F.Foldable f, Eq (f (Value a)))
     => f (Value a) -> f (Value b) -> Bool
 areEqual1 l r = case ttypeEqT of
     Just (Refl :: a :~: b) -> l == r
