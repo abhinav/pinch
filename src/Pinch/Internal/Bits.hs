@@ -18,7 +18,7 @@ module Pinch.Internal.Bits
 
 #if defined(__GLASGOW_HASKELL__) && !defined(__HADDOCK__)
 import GHC.Base (Int (..), uncheckedShiftL#)
-import GHC.Word (Word16 (..), Word32 (..), Word64 (..))
+import GHC.Word (Word16 (..), Word32 (..), Word64 (..), uncheckedShiftL64#)
 #else
 import Data.Bits (shiftL)
 import Data.Word (Word16, Word32, Word64)
@@ -38,7 +38,7 @@ w64ShiftL :: Word64 -> Int -> Word64
 #if defined(__GLASGOW_HASKELL__) && !defined(__HADDOCK__)
 w16ShiftL (W16# w) (I# i) = W16# (w `uncheckedShiftL#` i)
 w32ShiftL (W32# w) (I# i) = W32# (w `uncheckedShiftL#` i)
-w64ShiftL (W64# w) (I# i) = W64# (w `uncheckedShiftL#` i)
+w64ShiftL (W64# w) (I# i) = W64# (w `uncheckedShiftL64#` i)
 #else
 w16ShiftL = shiftL
 w32ShiftL = shiftL
