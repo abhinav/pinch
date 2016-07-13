@@ -10,6 +10,11 @@
 -   Add support for returning the leftover ByteString when parsing Thrift
     payloads (#3).
 
+0.2.0.2 (2016-07-12)
+====================
+
+-   Compile on 32-bit systems.
+
 0.2.0.1 (2016-05-23)
 ====================
 
