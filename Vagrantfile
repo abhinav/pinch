@@ -1,0 +1,20 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "puppetlabs/centos-6.6-32-nocm"
+  config.vm.synced_folder ".", "/vagrant", type: "rsync", rsync__exclude: [".stack-work/", ".vagrant/"], rsync__args: ["--verbose", "--archive", "--delete", "-z"]
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "2048"
+  end
+  config.ssh.forward_agent = true
+  config.vm.provision "shell", inline: <<-SHELL
+    set -xe
+    export PATH=/usr/local/bin:$PATH
+    yum -y check-update || true
+    yum -y install perl make automake gcc gmp-devel zlib-devel tar which git xz ncurses-devel
+    curl -sSL https://www.stackage.org/stack/linux-i386-gmp4 \
+      | tar xzvf - --wildcards --strip-components=1 -C /usr/local/bin '*/stack'
+    chmod a+x /usr/local/bin/stack
+  SHELL
+end
