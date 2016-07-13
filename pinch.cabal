@@ -1,9 +1,9 @@
--- This file has been generated from package.yaml by hpack version 0.13.0.
+-- This file has been generated from package.yaml by hpack version 0.14.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           pinch
-version:        0.2.0.1
+version:        0.2.0.2
 cabal-version:  >= 1.10
 build-type:     Simple
 license:        BSD3
