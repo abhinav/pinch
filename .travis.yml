@@ -55,7 +55,7 @@ matrix:
     compiler: ": #stack default osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-2"
+  - env: BUILD=stack ARGS="--resolver lts-2 --stack-yaml stack.osx.7.8.yaml"
     compiler: ": #stack 7.8.4 osx"
     os: osx
 

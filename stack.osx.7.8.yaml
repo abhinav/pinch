@@ -1,0 +1,7 @@
+# Workaround for https://github.com/haskell/cabal/issues/2653
+flags: {}
+packages:
+- '.'
+extra-deps:
+  - unix-2.7.1.0
+resolver: lts-2.22
