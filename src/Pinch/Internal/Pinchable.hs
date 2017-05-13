@@ -122,12 +122,13 @@ class IsTType (Tag a) => Pinchable a where
     unpinch :: Value (Tag a) -> Parser a
 
     default pinch
-        :: (Generic a, GPinchable (Rep a)) => a -> Value (GTag (Rep a))
+        :: (Generic a, Tag a ~ GTag (Rep a), GPinchable (Rep a))
+        => a -> Value (Tag a)
     pinch = genericPinch
 
     default unpinch
-        :: (Generic a, GPinchable (Rep a))
-        => Value (GTag (Rep a)) -> Parser a
+        :: (Generic a, Tag a ~ GTag (Rep a), GPinchable (Rep a))
+        => Value (Tag a) -> Parser a
     unpinch = genericUnpinch
 
 
