@@ -1,3 +1,9 @@
+0.3.2.0 (unreleased)
+====================
+
+-   Compact: Fixed bug which caused incorrect encoding of doubles.
+
+
 0.3.1.0 (2017-05-13)
 ====================
 

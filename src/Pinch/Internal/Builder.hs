@@ -21,7 +21,9 @@ module Pinch.Internal.Builder
     , int16BE
     , int32BE
     , int64BE
+    , int64LE
     , doubleBE
+    , doubleLE
     , byteString
     ) where
 
@@ -116,10 +118,21 @@ int64BE :: Int64 -> Builder
 int64BE = primFixed BP.int64BE
 {-# INLINE int64BE #-}
 
+-- | Serialize a signed 64-bit integer in little endian format.
+int64LE :: Int64 -> Builder
+int64LE = primFixed BP.int64LE
+{-# INLINE int64LE #-}
+
 -- | Serialize a signed 64-bit floating point number in big endian format.
 doubleBE :: Double -> Builder
 doubleBE = primFixed BP.doubleBE
 {-# INLINE doubleBE #-}
+
+-- | Serialize a signed 64-bit floating point number in little endian format.
+doubleLE :: Double -> Builder
+doubleLE = primFixed BP.doubleLE
+{-# INLINE doubleLE #-}
+
 
 -- | Inlcude the given ByteString as-is in the builder.
 --

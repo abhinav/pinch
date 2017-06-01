@@ -22,7 +22,9 @@ module Pinch.Internal.Parser
     , int16
     , int32
     , int64
+    , int64LE
     , double
+    , doubleLE
     , take
     ) where
 
@@ -177,11 +179,33 @@ int64 = mk <$> take 8
          fromIntegral (b `BU.unsafeIndex` 7)
 {-# INLINE int64 #-}
 
+-- | Produces a signed 64-bit integer (parsed in little endian byte ordering)
+-- and advances the parser.
+int64LE :: Parser Int64
+int64LE = mk <$> take 8
+  where
+    {-# INLINE mk #-}
+    mk b = fromIntegral $
+        (fromIntegral (b `BU.unsafeIndex` 7) `w64ShiftL` 56) .|.
+        (fromIntegral (b `BU.unsafeIndex` 6) `w64ShiftL` 48) .|.
+        (fromIntegral (b `BU.unsafeIndex` 5) `w64ShiftL` 40) .|.
+        (fromIntegral (b `BU.unsafeIndex` 4) `w64ShiftL` 32) .|.
+        (fromIntegral (b `BU.unsafeIndex` 3) `w64ShiftL` 24) .|.
+        (fromIntegral (b `BU.unsafeIndex` 2) `w64ShiftL` 16) .|.
+        (fromIntegral (b `BU.unsafeIndex` 1) `w64ShiftL`  8) .|.
+         fromIntegral (b `BU.unsafeIndex` 0)
+{-# INLINE int64LE #-}
 
 -- | Produces a 64-bit floating point number and advances the parser.
 double :: Parser Double
 double = int64 >>= \i -> return (ST.runST (cast i))
 {-# INLINE double #-}
+
+-- | Produces a 64-bit floating point number (parsed in little endian byte
+-- ordering) and advances the parser.
+doubleLE :: Parser Double
+doubleLE = int64LE >>= \i -> return (ST.runST (cast i))
+{-# INLINE doubleLE #-}
 
 
 cast :: (A.MArray (A.STUArray s) a (ST s),
