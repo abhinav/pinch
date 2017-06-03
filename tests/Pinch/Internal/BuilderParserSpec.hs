@@ -37,8 +37,14 @@ spec = describe "Builder and Parser" $ do
     prop "can round trip 64-bit integers" $
         roundTrip P.int64 BB.int64BE
 
+    prop "can round trip 64-bit little endian integers" $
+        roundTrip P.int64LE BB.int64LE
+
     prop "can round trip doubles" $
         roundTrip P.double BB.doubleBE
+
+    prop "can round trip little endian doubles" $
+        roundTrip P.doubleLE BB.doubleLE
 
     prop "can round trip bytestrings" $ \(SomeByteString bs) ->
         roundTrip (P.take (B.length bs)) BB.byteString bs

@@ -145,7 +145,7 @@ parseByte :: Parser (Value TByte)
 parseByte = VByte <$> P.int8
 
 parseDouble :: Parser (Value TDouble)
-parseDouble = VDouble <$> P.double
+parseDouble = VDouble <$> P.doubleLE
 
 parseInt16 :: Parser (Value TInt16)
 parseInt16 = VInt16 . fromIntegral . zigZagToInt <$> parseVarint
@@ -253,7 +253,7 @@ serializeByte (VByte x) = BB.int8 x
 {-# INLINE serializeByte #-}
 
 serializeDouble :: Value TDouble -> Builder
-serializeDouble (VDouble x) = BB.doubleBE x
+serializeDouble (VDouble x) = BB.doubleLE x
 {-# INLINE serializeDouble #-}
 
 serializeVarint :: Int64 -> Builder
