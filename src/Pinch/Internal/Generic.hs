@@ -47,10 +47,10 @@ module Pinch.Internal.Generic
 
 #if __GLASGOW_HASKELL__ < 709
 import Data.Foldable    (Foldable)
-import Data.Monoid      (Monoid)
 import Data.Traversable (Traversable)
 #endif
 
+import Data.Semigroup
 import Control.Applicative
 import Control.DeepSeq     (NFData)
 import Data.Proxy          (Proxy (..))
@@ -126,7 +126,7 @@ instance
 -- new data type.
 newtype Field (n :: Nat) a = Field a
   deriving
-    (Bounded, Eq, Enum, Foldable, Functor, Generic, Monoid, NFData, Ord, Show,
+    (Bounded, Eq, Enum, Foldable, Functor, Generic, Semigroup, Monoid, NFData, Ord, Show,
      Traversable, Typeable)
 
 -- | Gets the current value of a field.

@@ -34,7 +34,7 @@ import Control.Applicative
 import Control.DeepSeq (NFData (..))
 import Data.Hashable   (Hashable (..))
 import Data.List       (intercalate)
-import Data.Monoid
+import Data.Semigroup
 import Data.Typeable   (Typeable)
 
 import qualified Control.Monad    as M
@@ -96,7 +96,7 @@ instance Functor FoldList where
     {-# INLINE fmap #-}
 
 instance F.Foldable FoldList where
-    foldMap f (FoldList l) = l (\r a -> r <> f a) mempty
+    foldMap f (FoldList l) = l (\r a -> r `mappend` f a) mempty
     {-# INLINE foldMap #-}
 
     foldl' f r (FoldList l) = l f r
@@ -119,10 +119,14 @@ instance NFData a => NFData (FoldList a) where
 instance Hashable a => Hashable (FoldList a) where
     hashWithSalt s (FoldList l) = l hashWithSalt s
 
+instance Semigroup (FoldList a) where
+    FoldList f1 <> FoldList f2 =
+        FoldList $ \cons nil -> f2 cons (f1 cons nil)
+    {-# INLINE (<>) #-}
+
 instance Monoid (FoldList a) where
     mempty = FoldList (\_ r -> r)
     {-# INLINE mempty #-}
 
-    FoldList f1 `mappend` FoldList f2 =
-        FoldList $ \cons nil -> f2 cons (f1 cons nil)
+    FoldList f1 `mappend` FoldList f2 = FoldList $ \cons nil -> f2 cons (f1 cons nil)
     {-# INLINE mappend #-}
