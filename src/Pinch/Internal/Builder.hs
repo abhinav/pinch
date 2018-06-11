@@ -27,13 +27,10 @@ module Pinch.Internal.Builder
     , byteString
     ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Data.Monoid
-#endif
-
 import Data.ByteString              (ByteString)
 import Data.ByteString.Builder.Prim ((>*<))
 import Data.Int
+import Data.Semigroup
 import Data.Word                    (Word8)
 import Foreign.ForeignPtr           (withForeignPtr)
 import Foreign.Ptr                  (Ptr, plusPtr)
@@ -56,6 +53,10 @@ append (B ll lf) (B rl rf) = B (ll + rl) (\p -> lf p >> rf (p `plusPtr` ll))
 {-# INLINE [1] append #-}
     -- Don't inline append until phase 1. This ensures that the
     -- append/primFixed* rules have a chance to fire.
+
+instance Semigroup Builder where
+    (<>) = append
+    sconcat = foldr (<>) mempty
 
 instance Monoid Builder where
     {-# INLINE mempty #-}
