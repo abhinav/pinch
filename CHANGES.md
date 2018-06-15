@@ -1,3 +1,10 @@
+0.3.3.0 (2018-06-15)
+====================
+
+-   Add Semigroup instances for some internal types. This improves GHC 8.4
+    compatibility.
+
+
 0.3.2.0 (2017-06-03)
 ====================
 

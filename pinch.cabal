@@ -2,10 +2,10 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 43312b0c17346abda7422d4e436c0d900a39c6e099178d9a415f140caf172e60
+-- hash: 81e0ecf2f54c375e7fea61c471bd14781b8d75e4df2e4275e35022d78671ba9e
 
 name:           pinch
-version:        0.3.2.0
+version:        0.3.3.0
 cabal-version:  >= 1.10
 build-type:     Simple
 license:        BSD3
