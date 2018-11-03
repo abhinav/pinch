@@ -13,6 +13,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE UndecidableInstances       #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 #if __GLASGOW_HASKELL__ < 709
