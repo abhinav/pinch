@@ -85,13 +85,14 @@ test-suite pinch-spec
     hs-source-dirs:
         tests
     ghc-options: -Wall
+    build-tool-depends:
+        hspec-discover:hspec-discover
     build-depends:
         QuickCheck >=2.5,
         base >=4.7 && <5,
         bytestring >=0.10 && <0.11,
         containers >=0.5 && <0.7,
         hspec >=2.0,
-        hspec-discover >=2.1,
         pinch,
         semigroups >=0.18 && <0.19,
         text >=1.2 && <1.3,
