@@ -19,6 +19,7 @@ module Pinch
 
       encode
     , decode
+    , decodeWithLeftovers
 
     -- * RPC
 
@@ -207,6 +208,16 @@ encode p = runBuilder . serializeValue p . pinch
 decode :: Pinchable a => Protocol -> ByteString -> Either String a
 decode p = deserializeValue p >=> runParser . unpinch
 {-# INLINE decode #-}
+
+-- | Decode a 'Pinchable' value from the using the given 'Protocol'.
+--
+-- >>> let s = pack [11,0,0,0,2,0,0,0,1,97,0,0,0,1,98,0,0,0]
+-- >>> decodeWithLeftovers binaryProtocol s :: Either String [ByteString]
+-- Right ("\NUL\NUL\NUL",["a","b"])
+--
+decodeWithLeftovers :: Pinchable a => Protocol -> ByteString -> Either String (ByteString, a)
+decodeWithLeftovers p = deserializeValue' p >=> traverse (runParser . unpinch)
+{-# INLINE decodeWithLeftovers #-}
 
 ------------------------------------------------------------------------------
 
