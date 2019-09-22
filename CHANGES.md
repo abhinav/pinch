@@ -1,4 +1,4 @@
-0.3.4.2 (2019-09-22)
+0.3.5.0 (2019-09-22)
 ====================
 
 -   Introduce decodeWithLeftovers for receiving unparsed portions
