@@ -14,7 +14,6 @@
 module Pinch.Protocol
     ( Protocol(..)
     , deserializeValue
-    , deserializeValue'
     ) where
 
 import Data.ByteString (ByteString)

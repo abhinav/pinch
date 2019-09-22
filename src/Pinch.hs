@@ -149,7 +149,7 @@ module Pinch
 
 import Control.Monad
 import Data.ByteString (ByteString)
-import Data.Int        (Int8, Int32)
+import Data.Int        (Int32)
 import Data.Text       (Text)
 
 import Pinch.Internal.Builder   (runBuilder)
