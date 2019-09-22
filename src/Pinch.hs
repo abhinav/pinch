@@ -149,7 +149,7 @@ module Pinch
 
 import Control.Monad
 import Data.ByteString (ByteString)
-import Data.Int        (Int32)
+import Data.Int        (Int8, Int32)
 import Data.Text       (Text)
 
 import Pinch.Internal.Builder   (runBuilder)
@@ -212,9 +212,9 @@ decode p = deserializeValue p >=> runParser . unpinch
 -- | Decode a 'Pinchable' value from the using the given 'Protocol'
 -- and also return the "unparsed" portion of the bytestring.
 --
--- >>> let s = pack [11,0,0,0,2,0,0,0,1,97,0,0,0,1,98,0,0,0]
--- >>> decodeWithLeftovers binaryProtocol s :: Either String [ByteString]
--- Right ("\NUL\NUL\NUL",["a","b"])
+-- >>> let s = pack [3,0,0,0,5,1,2,3,4,5,0,0,0]
+-- >>> decodeWithLeftovers binaryProtocol s :: Either String (ByteString, [Int8])
+-- Right ("\NUL\NUL\NUL",[1,2,3,4,5])
 --
 decodeWithLeftovers :: Pinchable a => Protocol -> ByteString -> Either String (ByteString, a)
 decodeWithLeftovers p = deserializeValue' p >=> traverse (runParser . unpinch)
