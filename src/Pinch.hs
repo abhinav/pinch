@@ -209,7 +209,8 @@ decode :: Pinchable a => Protocol -> ByteString -> Either String a
 decode p = deserializeValue p >=> runParser . unpinch
 {-# INLINE decode #-}
 
--- | Decode a 'Pinchable' value from the using the given 'Protocol'.
+-- | Decode a 'Pinchable' value from the using the given 'Protocol'
+-- and also return the "unparsed" portion of the bytestring.
 --
 -- >>> let s = pack [11,0,0,0,2,0,0,0,1,97,0,0,0,1,98,0,0,0]
 -- >>> decodeWithLeftovers binaryProtocol s :: Either String [ByteString]
