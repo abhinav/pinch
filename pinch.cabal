@@ -5,7 +5,7 @@
 -- hash: a26aa0d54b7b1bd93ac84d5f821dcc0245b6df6ff10cb67dda63ee3f7f879551
 
 name:           pinch
-version:        0.3.4.1
+version:        0.3.5.0
 cabal-version:  >= 1.10
 build-type:     Simple
 license:        BSD3

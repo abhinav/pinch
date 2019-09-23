@@ -1,3 +1,9 @@
+0.3.5.0 (2019-09-22)
+====================
+
+-   Introduce decodeWithLeftovers for receiving unparsed portions
+    of the provided bytestring.
+
 0.3.4.1 (2019-02-20)
 ====================
 
