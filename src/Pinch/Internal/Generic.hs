@@ -51,6 +51,7 @@ import Data.Foldable    (Foldable)
 import Data.Traversable (Traversable)
 #endif
 
+import Data.Binary         (Binary)
 import Data.Semigroup
 import Control.Applicative
 import Control.DeepSeq     (NFData)
@@ -128,7 +129,7 @@ instance
 newtype Field (n :: Nat) a = Field a
   deriving
     (Bounded, Eq, Enum, Foldable, Functor, Generic, Semigroup, Monoid, NFData, Ord, Show,
-     Traversable, Typeable)
+     Traversable, Typeable, Binary)
 
 -- | Gets the current value of a field.
 --
@@ -187,6 +188,7 @@ data Enumeration (n :: Nat) = Enumeration
     (Eq, Generic, Ord, Show, Typeable)
 
 instance NFData (Enumeration n)
+instance Binary (Enumeration k)
 
 -- | Convenience function to construct 'Enumeration' objects.
 --

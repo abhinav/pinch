@@ -1,3 +1,8 @@
+0.3.5.1 (2019-12-14)
+====================
+
+-   Add Binary instances to Field and Enumeration types.
+
 0.3.5.0 (2019-09-25)
 ====================
 
