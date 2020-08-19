@@ -273,7 +273,7 @@ spec = describe "BinaryProtocol" $ do
         , (SomeTType TList, [0x10, 0x00, 0x00, 0x00, 0x00])
         ]
 
-    it "can read and write messages" $ readWriteMessageCases
+    it "can read and write messages" $ readMessageCases
         [ ([ 0x00, 0x00, 0x00, 0x06                 -- length = 6
            , 0x67, 0x65, 0x74, 0x46, 0x6f, 0x6f     -- 'getFoo'
            , 0x01                                   -- type = Call
@@ -288,7 +288,7 @@ spec = describe "BinaryProtocol" $ do
            ], Message "setBar" Reply 1 (vstruct []))
         ]
 
-    it "can read strict messages" $ readMessageCases
+    it "can read strict messages" $ readWriteMessageCases
         [ ([ 0x80, 0x01     -- version = 1
            , 0x00, 0x03     -- type = Exception
 
