@@ -58,9 +58,6 @@ instance Alternative Parser where
             l' (\_ -> r' kFail kSucc) kSucc
 
 instance Monad Parser where
-    {-# INLINE fail #-}
-    fail msg = Parser $ \kFail _ -> kFail msg
-
     {-# INLINE return #-}
     return = pure
 
@@ -72,6 +69,11 @@ instance Monad Parser where
         Parser $ \kFail kSuccB ->
             a' kFail $ \a ->
             unParser (k a) kFail kSuccB
+
+instance MonadFail Parser where
+    {-# INLINE fail #-}
+    fail msg = Parser $ \kFail _ -> kFail msg
+
 
 instance MonadPlus Parser where
     {-# INLINE mzero #-}

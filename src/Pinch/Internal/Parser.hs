@@ -87,14 +87,14 @@ instance Monad Parser where
     {-# INLINE (>>) #-}
     (>>) = (*>)
 
-    {-# INLINE fail #-}
-    fail msg = Parser $ \_ kFail _ -> kFail msg
-
     {-# INLINE (>>=) #-}
     Parser m >>= k = Parser
         $ \b0 kFail kSucc -> m b0 kFail
         $ \b1 a -> unParser (k a) b1 kFail kSucc
 
+instance MonadFail Parser where
+    {-# INLINE fail #-}
+    fail msg = Parser $ \_ kFail _ -> kFail msg
 
 -- | Run the parser on the given ByteString. Return either the failure message
 -- or the result.

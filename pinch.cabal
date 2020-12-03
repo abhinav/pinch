@@ -1,18 +1,11 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: a26aa0d54b7b1bd93ac84d5f821dcc0245b6df6ff10cb67dda63ee3f7f879551
 
 name:           pinch
-version:        0.3.5.0
-cabal-version:  >= 1.10
-build-type:     Simple
-license:        BSD3
-license-file:   LICENSE
-maintainer:     mail@abhinavg.net
-homepage:       https://github.com/abhinav/pinch#readme
-bug-reports:    https://github.com/abhinav/pinch/issues
+version:        0.3.5.1
 synopsis:       An alternative implementation of Thrift for Haskell.
 description:    This library provides machinery for types to specify how they can be
                 serialized and deserialized into/from Thrift payloads. It makes no
@@ -27,92 +20,98 @@ description:    This library provides machinery for types to specify how they ca
                 various programming languages to interact with the generated code. Pinch
                 aims to provide an alternative implementation of Thrift for Haskell.
 category:       Development
+homepage:       https://github.com/abhinav/pinch#readme
+bug-reports:    https://github.com/abhinav/pinch/issues
 author:         Abhinav Gupta
+maintainer:     mail@abhinavg.net
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
 extra-source-files:
+    README.md
+    CHANGES.md
     bench/pinch-bench/Bench.hs
     bench/pinch-bench/pinch-bench.cabal
-    CHANGES.md
     examples/keyvalue/Client.hs
-    examples/keyvalue/keyvalue.cabal
-    examples/keyvalue/keyvalue.thrift
     examples/keyvalue/Server.hs
     examples/keyvalue/Setup.hs
     examples/keyvalue/Types.hs
-    README.md
+    examples/keyvalue/keyvalue.cabal
+    examples/keyvalue/keyvalue.thrift
 
 source-repository head
-    type: git
-    location: https://github.com/abhinav/pinch
+  type: git
+  location: https://github.com/abhinav/pinch
 
 library
-    hs-source-dirs:
-        src
-    ghc-options: -Wall
-    build-depends:
-        array >=0.5,
-        base >=4.7 && <5,
-        bytestring >=0.10 && <0.11,
-        containers >=0.5 && <0.7,
-        deepseq >=1.3 && <1.5,
-        ghc-prim,
-        hashable >=1.2 && <1.3,
-        semigroups >=0.18 && <0.19,
-        text >=1.2 && <1.3,
-        unordered-containers >=0.2 && <0.3,
-        vector >=0.10 && <0.13
-    build-tools:
-        hspec-discover >=2.1
-    exposed-modules:
-        Pinch
-        Pinch.Internal.Builder
-        Pinch.Internal.FoldList
-        Pinch.Internal.Generic
-        Pinch.Internal.Message
-        Pinch.Internal.Parser
-        Pinch.Internal.Pinchable
-        Pinch.Internal.TType
-        Pinch.Internal.Value
-        Pinch.Protocol
-        Pinch.Protocol.Binary
-        Pinch.Protocol.Compact
-    other-modules:
-        Pinch.Internal.Bits
-        Pinch.Internal.Pinchable.Parser
-        Paths_pinch
-    default-language: Haskell2010
+  exposed-modules:
+      Pinch
+      Pinch.Internal.Builder
+      Pinch.Internal.FoldList
+      Pinch.Internal.Generic
+      Pinch.Internal.Message
+      Pinch.Internal.Parser
+      Pinch.Internal.Pinchable
+      Pinch.Internal.TType
+      Pinch.Internal.Value
+      Pinch.Protocol
+      Pinch.Protocol.Binary
+      Pinch.Protocol.Compact
+  other-modules:
+      Pinch.Internal.Bits
+      Pinch.Internal.Pinchable.Parser
+      Paths_pinch
+  hs-source-dirs:
+      src
+  ghc-options: -Wall
+  build-tool-depends:
+      hspec-discover:hspec-discover >=2.1
+  build-depends:
+      array >=0.5
+    , base >=4.7 && <5
+    , bytestring >=0.10 && <0.11
+    , containers >=0.5 && <0.7
+    , deepseq >=1.3 && <1.5
+    , ghc-prim
+    , hashable >=1.2 && <1.4
+    , semigroups >=0.18 && <0.20
+    , text >=1.2 && <1.3
+    , unordered-containers >=0.2 && <0.3
+    , vector >=0.10 && <0.13
+  default-language: Haskell2010
 
 test-suite pinch-spec
-    type: exitcode-stdio-1.0
-    main-is: Spec.hs
-    hs-source-dirs:
-        tests
-    ghc-options: -Wall
-    build-depends:
-        QuickCheck >=2.5,
-        base >=4.7 && <5,
-        bytestring >=0.10 && <0.11,
-        containers >=0.5 && <0.7,
-        hspec >=2.0,
-        pinch,
-        semigroups >=0.18 && <0.19,
-        text >=1.2 && <1.3,
-        unordered-containers >=0.2 && <0.3,
-        vector >=0.10 && <0.13
-    build-tools:
-        hspec-discover >=2.1
-    other-modules:
-        Pinch.Arbitrary
-        Pinch.Expectations
-        Pinch.Internal.BuilderParserSpec
-        Pinch.Internal.BuilderSpec
-        Pinch.Internal.FoldListSpec
-        Pinch.Internal.GenericSpec
-        Pinch.Internal.ParserSpec
-        Pinch.Internal.PinchableSpec
-        Pinch.Internal.TTypeSpec
-        Pinch.Internal.Util
-        Pinch.Internal.ValueSpec
-        Pinch.Protocol.BinarySpec
-        Pinch.Protocol.CompactSpec
-        Paths_pinch
-    default-language: Haskell2010
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Pinch.Arbitrary
+      Pinch.Expectations
+      Pinch.Internal.BuilderParserSpec
+      Pinch.Internal.BuilderSpec
+      Pinch.Internal.FoldListSpec
+      Pinch.Internal.GenericSpec
+      Pinch.Internal.ParserSpec
+      Pinch.Internal.PinchableSpec
+      Pinch.Internal.TTypeSpec
+      Pinch.Internal.Util
+      Pinch.Internal.ValueSpec
+      Pinch.Protocol.BinarySpec
+      Pinch.Protocol.CompactSpec
+      Paths_pinch
+  hs-source-dirs:
+      tests
+  ghc-options: -Wall
+  build-tool-depends:
+      hspec-discover:hspec-discover >=2.1
+  build-depends:
+      QuickCheck >=2.5
+    , base >=4.7 && <5
+    , bytestring >=0.10 && <0.11
+    , containers >=0.5 && <0.7
+    , hspec >=2.0
+    , pinch
+    , semigroups >=0.18 && <0.20
+    , text >=1.2 && <1.3
+    , unordered-containers >=0.2 && <0.3
+    , vector >=0.10 && <0.13
+  default-language: Haskell2010
