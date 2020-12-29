@@ -25,20 +25,20 @@ import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int8)
 import Data.Monoid
 
-import qualified Data.ByteString     as B
-import qualified Data.HashMap.Strict as M
-import qualified Data.Text.Encoding  as TE
+import qualified Data.ByteString        as B
+import qualified Data.HashMap.Strict    as M
+import qualified Data.Serialize.Get     as G
+import qualified Data.Serialize.IEEE754 as G
+import qualified Data.Text.Encoding     as TE
 
 import Pinch.Internal.Builder (Builder)
 import Pinch.Internal.Message
-import Pinch.Internal.Parser  (Parser, runParser, runParser')
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol         (Protocol (..))
 
 import qualified Pinch.Internal.Builder  as BB
 import qualified Pinch.Internal.FoldList as FL
-import qualified Pinch.Internal.Parser   as P
 
 
 -- | Provides an implementation of the Thrift Binary Protocol.
@@ -47,7 +47,7 @@ binaryProtocol = Protocol
     { serializeValue     = binarySerialize
     , deserializeValue'  = binaryDeserialize ttype
     , serializeMessage   = binarySerializeMessage
-    , deserializeMessage = binaryDeserializeMessage
+    , deserializeMessage' = binaryDeserializeMessage
     }
 
 ------------------------------------------------------------------------------
@@ -58,12 +58,9 @@ binarySerializeMessage msg =
     BB.int8 (messageCode (messageType msg)) <> BB.int32BE (messageId msg) <>
     binarySerialize (messagePayload msg)
 
-binaryDeserializeMessage :: ByteString -> Either String Message
-binaryDeserializeMessage = runParser binaryMessageParser
-
-binaryMessageParser :: Parser Message
-binaryMessageParser = do
-    size <- P.int32
+binaryDeserializeMessage :: G.Get Message
+binaryDeserializeMessage = do
+    size <- G.getInt32be
     if size < 0
         then parseStrict size
         else parseNonStrict size
@@ -74,10 +71,10 @@ binaryMessageParser = do
         unless (version == 1) $
             fail $ "Unsupported version: " ++ show version
         Message
-            <$> TE.decodeUtf8 <$> (P.int32 >>= P.take . fromIntegral)
+            <$> TE.decodeUtf8 <$> (G.getInt32be >>= G.getBytes . fromIntegral)
             <*> typ
-            <*> P.int32
-            <*> binaryParser ttype
+            <*> G.getInt32be
+            <*> binaryDeserialize ttype
       where
         version = (0x7fff0000 .&. versionAndType) `shiftR` 16
 
@@ -89,24 +86,21 @@ binaryMessageParser = do
     -- name~4 type:1 seqid:4 payload
     parseNonStrict nameLength =
         Message
-            <$> TE.decodeUtf8 <$> P.take (fromIntegral nameLength)
+            <$> TE.decodeUtf8 <$> G.getBytes (fromIntegral nameLength)
             <*> parseMessageType
-            <*> P.int32
-            <*> binaryParser ttype
+            <*> G.getInt32be
+            <*> binaryDeserialize ttype
 
 
-parseMessageType :: Parser MessageType
-parseMessageType = P.int8 >>= \code -> case fromMessageCode code of
+parseMessageType :: G.Get MessageType
+parseMessageType = G.getInt8 >>= \code -> case fromMessageCode code of
     Nothing -> fail $ "Unknown message type: " ++ show code
     Just t -> return t
 
 ------------------------------------------------------------------------------
 
-binaryDeserialize :: TType a -> ByteString -> Either String (ByteString, Value a)
-binaryDeserialize t = runParser' (binaryParser t)
-
-binaryParser :: TType a -> Parser (Value a)
-binaryParser typ = case typ of
+binaryDeserialize :: TType a -> G.Get (Value a)
+binaryDeserialize typ = case typ of
   TBool   -> parseBool
   TByte   -> parseByte
   TDouble -> parseDouble
@@ -119,81 +113,81 @@ binaryParser typ = case typ of
   TSet    -> parseSet
   TList   -> parseList
 
-getTType :: Int8 -> Parser SomeTType
+getTType :: Int8 -> G.Get SomeTType
 getTType code =
     maybe (fail $ "Unknown TType: " ++ show code) return $ fromTypeCode code
 
-parseTType :: Parser SomeTType
-parseTType = P.int8 >>= getTType
+parseTType :: G.Get SomeTType
+parseTType = G.getInt8 >>= getTType
 
-parseBool :: Parser (Value TBool)
-parseBool = VBool . (== 1) <$> P.int8
+parseBool :: G.Get (Value TBool)
+parseBool = VBool . (== 1) <$> G.getInt8
 
-parseByte :: Parser (Value TByte)
-parseByte = VByte <$> P.int8
+parseByte :: G.Get (Value TByte)
+parseByte = VByte <$> G.getInt8
 
-parseDouble :: Parser (Value TDouble)
-parseDouble = VDouble <$> P.double
+parseDouble :: G.Get (Value TDouble)
+parseDouble = VDouble <$> G.getFloat64be
 
-parseInt16 :: Parser (Value TInt16)
-parseInt16 = VInt16 <$> P.int16
+parseInt16 :: G.Get (Value TInt16)
+parseInt16 = VInt16 <$> G.getInt16be
 
-parseInt32 :: Parser (Value TInt32)
-parseInt32 = VInt32 <$> P.int32
+parseInt32 :: G.Get (Value TInt32)
+parseInt32 = VInt32 <$> G.getInt32be
 
-parseInt64 :: Parser (Value TInt64)
-parseInt64 = VInt64 <$> P.int64
+parseInt64 :: G.Get (Value TInt64)
+parseInt64 = VInt64 <$> G.getInt64be
 
-parseBinary :: Parser (Value TBinary)
-parseBinary = VBinary <$> (P.int32 >>= P.take . fromIntegral)
+parseBinary :: G.Get (Value TBinary)
+parseBinary = VBinary <$> (G.getInt32be >>= G.getBytes . fromIntegral)
 
 
-parseMap :: Parser (Value TMap)
+parseMap :: G.Get (Value TMap)
 parseMap = do
     ktype' <- parseTType
     vtype' <- parseTType
-    count <- P.int32
+    count <- G.getInt32be
 
     case (ktype', vtype') of
       (SomeTType ktype, SomeTType vtype) -> do
         items <- FL.replicateM (fromIntegral count) $
-            MapItem <$> binaryParser ktype
-                    <*> binaryParser vtype
+            MapItem <$> binaryDeserialize ktype
+                    <*> binaryDeserialize vtype
         return $ VMap items
 
 
-parseSet :: Parser (Value TSet)
+parseSet :: G.Get (Value TSet)
 parseSet = do
     vtype' <- parseTType
-    count <- P.int32
+    count <- G.getInt32be
 
     case vtype' of
       SomeTType vtype ->
-          VSet <$> FL.replicateM (fromIntegral count) (binaryParser vtype)
+          VSet <$> FL.replicateM (fromIntegral count) (binaryDeserialize vtype)
 
 
-parseList :: Parser (Value TList)
+parseList :: G.Get (Value TList)
 parseList = do
     vtype' <- parseTType
-    count <- P.int32
+    count <- G.getInt32be
 
     case vtype' of
       SomeTType vtype ->
-        VList <$> FL.replicateM (fromIntegral count) (binaryParser vtype)
+        VList <$> FL.replicateM (fromIntegral count) (binaryDeserialize vtype)
 
 
-parseStruct :: Parser (Value TStruct)
-parseStruct = P.int8 >>= loop M.empty
+parseStruct :: G.Get (Value TStruct)
+parseStruct = G.getInt8 >>= loop M.empty
   where
-    loop :: HashMap Int16 SomeValue -> Int8 -> Parser (Value TStruct)
+    loop :: HashMap Int16 SomeValue -> Int8 -> G.Get (Value TStruct)
     loop fields    0 = return $ VStruct fields
     loop fields code = do
         vtype' <- getTType code
-        fieldId <- P.int16
+        fieldId <- G.getInt16be
         case vtype' of
           SomeTType vtype -> do
-            value <- SomeValue <$> binaryParser vtype
-            loop (M.insert fieldId value fields) =<< P.int8
+            value <- SomeValue <$> binaryDeserialize vtype
+            loop (M.insert fieldId value fields) =<< G.getInt8
 
 
 ------------------------------------------------------------------------------

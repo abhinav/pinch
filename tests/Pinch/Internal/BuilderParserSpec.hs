@@ -10,67 +10,68 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 
 import qualified Data.ByteString as B
+import qualified Data.Serialize.IEEE754 as G
+import qualified Data.Serialize.Get as G
 
 import Pinch.Arbitrary
 
 import qualified Pinch.Internal.Builder as BB
-import qualified Pinch.Internal.Parser  as P
 
 roundTrip
     :: (Show a, Eq a)
-    => P.Parser a -> (a -> BB.Builder) -> a -> Expectation
+    => G.Get a -> (a -> BB.Builder) -> a -> Expectation
 roundTrip parser builder a =
-        P.runParser parser (BB.runBuilder (builder a)) `shouldBe` Right a
+        G.runGet parser (BB.runBuilder (builder a)) `shouldBe` Right a
 
 spec :: Spec
 spec = describe "Builder and Parser" $ do
 
     prop "can round trip 8-bit integers" $
-        roundTrip P.int8 BB.int8
+        roundTrip G.getInt8 BB.int8
 
     prop "can round trip 16-bit integers" $
-        roundTrip P.int16 BB.int16BE
+        roundTrip G.getInt16be BB.int16BE
 
     prop "can round trip 32-bit integers" $
-        roundTrip P.int32 BB.int32BE
+        roundTrip G.getInt32be BB.int32BE
 
     prop "can round trip 64-bit integers" $
-        roundTrip P.int64 BB.int64BE
+        roundTrip G.getInt64be BB.int64BE
 
     prop "can round trip 64-bit little endian integers" $
-        roundTrip P.int64LE BB.int64LE
+        roundTrip G.getInt64le BB.int64LE
 
     prop "can round trip doubles" $
-        roundTrip P.double BB.doubleBE
+        roundTrip G.getFloat64be BB.doubleBE
 
     prop "can round trip little endian doubles" $
-        roundTrip P.doubleLE BB.doubleLE
+        roundTrip G.getFloat64le BB.doubleLE
 
     prop "can round trip bytestrings" $ \(SomeByteString bs) ->
-        roundTrip (P.take (B.length bs)) BB.byteString bs
+        roundTrip (G.getByteString (B.length bs)) BB.byteString bs
 
     prop "can round trip primitive appends" $
         roundTrip
-            ((,) <$> P.int32 <*> P.int64)
+            ((,) <$> G.getInt32be <*> G.getInt64be)
             (\(a, b) -> BB.int32BE a <> BB.int64BE b)
 
     prop "can round trip byteString appends" $
         \(SomeByteString l) (SomeByteString r) ->
             roundTrip
-                ((,) <$> P.take (B.length l) <*> P.take (B.length r))
+                ((,) <$> G.getByteString (B.length l) <*> G.getByteString (B.length r))
                 (\(a, b) -> BB.byteString a <> BB.byteString b)
                 (l, r)
 
     prop "can round trip byteString-primitive appends" $
         \(SomeByteString l) r ->
             roundTrip
-                ((,) <$> P.take (B.length l) <*> P.double)
+                ((,) <$> G.getByteString (B.length l) <*> G.getFloat64be)
                 (\(a, b) -> BB.byteString a <> BB.doubleBE b)
                 (l, r)
 
     prop "can round trip primitive-byteString appends" $
         \l (SomeByteString r) ->
             roundTrip
-                ((,) <$> P.int64 <*> P.take (B.length r))
+                ((,) <$> G.getInt64be <*> G.getByteString (B.length r))
                 (\(a, b) -> BB.int64BE a <> BB.byteString b)
                 (l, r)

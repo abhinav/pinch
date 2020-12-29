@@ -77,7 +77,7 @@ tooShortCases = mapM_ . uncurry $ \(SomeTType t) v -> go t v
             Right v -> expectationFailure $
               "Expected " ++ show bytes ++ " to fail to parse. " ++
               "Got: " ++ show v
-            Left msg -> msg `shouldContain` "Input is too short"
+            Left msg -> msg `shouldContain` "too few bytes"
 
 
 spec :: Spec

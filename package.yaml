@@ -35,6 +35,7 @@ ghc-options: -Wall
 dependencies:
   - base >= 4.7 && < 5
   - bytestring >= 0.10 && < 0.11
+  - cereal >= 0.5.8.1 && < 0.6
   - containers >= 0.5 && < 0.7
   - text >= 1.2 && < 1.3
   - unordered-containers >= 0.2 && < 0.3
@@ -52,7 +53,6 @@ library:
     - Pinch.Internal.FoldList
     - Pinch.Internal.Generic
     - Pinch.Internal.Message
-    - Pinch.Internal.Parser
     - Pinch.Internal.Pinchable
     - Pinch.Internal.TType
     - Pinch.Internal.Value
