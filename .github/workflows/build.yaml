@@ -12,7 +12,7 @@ jobs:
           - os: windows-latest
             ghc: '8.8.3'
       fail-fast: false
-    name: Haskell GHC ${{ matrix.ghc }} sample
+    name: Build with GHC ${{ matrix.ghc }} on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
       - name: Setup Haskell
