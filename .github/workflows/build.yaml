@@ -1,0 +1,23 @@
+on: [push, pull_request]
+name: build
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        ghc: ['8.8.3', '8.10.2']
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+        exclude:
+          # a test suite dependency fails on windows/ghc8.8.3
+          - os: windows-latest
+            ghc: '8.8.3'
+      fail-fast: false
+    name: Haskell GHC ${{ matrix.ghc }} sample
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Haskell
+        uses: haskell/actions/setup@v1
+        with:
+          cabal-version: latest
+          ghc-version: ${{ matrix.ghc }}
+      - run: cabal v2-test
