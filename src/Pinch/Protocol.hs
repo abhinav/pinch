@@ -14,9 +14,11 @@
 module Pinch.Protocol
     ( Protocol(..)
     , deserializeValue
+    , deserializeMessage
     ) where
 
 import Data.ByteString (ByteString)
+import Data.Serialize.Get (Get, runGet)
 
 import Pinch.Internal.Builder (Builder)
 import Pinch.Internal.Message (Message)
@@ -35,14 +37,18 @@ data Protocol = Protocol
     -- Returns a @Builder@ and the total length of the serialized content.
 
     , deserializeValue'
-        :: forall a. IsTType a => ByteString -> Either String (ByteString, Value a)
+        :: forall a. IsTType a => Get (Value a)
     -- ^ Reads a 'Value' from a ByteString and returns leftovers from parse.
-    , deserializeMessage :: ByteString -> Either String Message
-    -- ^ Reads a 'Message' and its payload from a ByteString.
+    , deserializeMessage' :: Get Message
+    -- ^ Reads a 'Message' and its payload.
     }
 
 
 -- | Reads a 'Value' from a ByteString.
 deserializeValue :: forall a. IsTType a
                  => Protocol -> ByteString -> Either String (Value a)
-deserializeValue proto = fmap snd . deserializeValue' proto
+deserializeValue proto = runGet $ deserializeValue' proto
+
+-- | Reads a 'Message' and its payload from a ByteString.
+deserializeMessage :: Protocol -> ByteString -> Either String Message
+deserializeMessage proto = runGet $ deserializeMessage' proto

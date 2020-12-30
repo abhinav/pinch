@@ -31,20 +31,20 @@ import Data.Ord            (comparing)
 import Data.Typeable       (Typeable)
 import Data.Word           (Word64, Word8)
 
-import qualified Data.ByteString     as B
-import qualified Data.HashMap.Strict as M
-import qualified Data.Text.Encoding  as TE
+import qualified Data.ByteString        as B
+import qualified Data.HashMap.Strict    as M
+import qualified Data.Serialize.IEEE754 as G
+import qualified Data.Serialize.Get     as G
+import qualified Data.Text.Encoding     as TE
 
 import Pinch.Internal.Builder (Builder)
 import Pinch.Internal.Message
-import Pinch.Internal.Parser  (Parser, runParser, runParser')
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol         (Protocol (..))
 
 import qualified Pinch.Internal.Builder  as BB
 import qualified Pinch.Internal.FoldList as FL
-import qualified Pinch.Internal.Parser   as P
 
 
 -- | Provides an implementation of the Thrift Compact Protocol.
@@ -53,7 +53,7 @@ compactProtocol = Protocol
     { serializeValue     = compactSerialize
     , deserializeValue'  = compactDeserialize ttype
     , serializeMessage   = compactSerializeMessage
-    , deserializeMessage = compactDeserializeMessage
+    , deserializeMessage' = compactDeserializeMessage
     }
 
 ------------------------------------------------------------------------------
@@ -70,20 +70,17 @@ compactSerializeMessage msg =
     string (TE.encodeUtf8 $ messageName msg) <>
     compactSerialize (messagePayload msg)
 
-compactDeserializeMessage :: ByteString -> Either String Message
-compactDeserializeMessage = runParser compactMessageParser
-
-compactMessageParser :: Parser Message
-compactMessageParser = do
-    pid <- P.word8
+compactDeserializeMessage :: G.Get Message
+compactDeserializeMessage = do
+    pid <- G.getWord8
     when (pid /= protocolId) $ fail "Invalid protocol ID"
-    w <- P.word8
+    w <- G.getWord8
     let ver = w .&. 0x1f
     when (ver /= version) $ fail $ "Unsupported version: " ++ show ver
     let code = w `shiftR` 5
     msgId <- parseVarint
-    msgName <- TE.decodeUtf8 <$> (parseVarint >>= P.take . fromIntegral)
-    payload <- compactParser ttype
+    msgName <- TE.decodeUtf8 <$> (parseVarint >>= G.getBytes . fromIntegral)
+    payload <- compactDeserialize ttype
     mtype <- case fromMessageCode code of
         Nothing -> fail $ "unknown message type: " ++ show code
         Just t -> return t
@@ -96,13 +93,10 @@ compactMessageParser = do
 
 ------------------------------------------------------------------------------
 
-compactDeserialize :: TType a -> ByteString -> Either String (ByteString, Value a)
-compactDeserialize t = runParser' (compactParser t)
-
-compactParser :: TType a -> Parser (Value a)
-compactParser typ = case typ of
+compactDeserialize :: TType a -> G.Get (Value a)
+compactDeserialize typ = case typ of
   TBool      -> do
-      n <- P.int8
+      n <- G.getInt8
       return $ VBool (n == 1)
   TByte      -> parseByte
   TDouble    -> parseDouble
@@ -126,51 +120,51 @@ zigZagToInt n =
     n' = fromIntegral n :: Word64
     -- ensure no sign extension
 
-parseVarint :: Parser Int64
+parseVarint :: G.Get Int64
 parseVarint = go 0 0
   where
     go !val !shift = do
         when (shift >= 64) $ fail "parseVarint: too wide"
-        n <- P.word8
+        n <- G.getWord8
         let val' = val .|. ((fromIntegral n .&. 0x7f) `shiftL` shift)
         if testBit n 7
           then go val' (shift + 7)
           else return val'
 
-getCType :: Word8 -> Parser SomeCType
+getCType :: Word8 -> G.Get SomeCType
 getCType code =
     maybe (fail $ "Unknown CType: " ++ show code) return $ fromCompactCode code
 
-parseByte :: Parser (Value TByte)
-parseByte = VByte <$> P.int8
+parseByte :: G.Get (Value TByte)
+parseByte = VByte <$> G.getInt8
 
-parseDouble :: Parser (Value TDouble)
-parseDouble = VDouble <$> P.doubleLE
+parseDouble :: G.Get (Value TDouble)
+parseDouble = VDouble <$> G.getFloat64le
 
-parseInt16 :: Parser (Value TInt16)
+parseInt16 :: G.Get (Value TInt16)
 parseInt16 = VInt16 . fromIntegral . zigZagToInt <$> parseVarint
 
-parseInt32 :: Parser (Value TInt32)
+parseInt32 :: G.Get (Value TInt32)
 parseInt32 = VInt32 . fromIntegral . zigZagToInt <$> parseVarint
 
-parseInt64 :: Parser (Value TInt64)
+parseInt64 :: G.Get (Value TInt64)
 parseInt64 = VInt64 . fromIntegral . zigZagToInt <$> parseVarint
 
-parseBinary :: Parser (Value TBinary)
+parseBinary :: G.Get (Value TBinary)
 parseBinary = do
     n <- parseVarint
     when (n < 0) $
         fail $ "parseBinary: invalid length " ++ show n
-    VBinary <$> P.take (fromIntegral n)
+    VBinary <$> G.getBytes (fromIntegral n)
 
 
-parseMap :: Parser (Value TMap)
+parseMap :: G.Get (Value TMap)
 parseMap = do
     count <- parseVarint
     case count of
       0 -> return VNullMap
       _ -> do
-          tys <- P.word8
+          tys <- G.getWord8
           SomeCType kctype <- getCType (tys `shiftR` 4)
           SomeCType vctype <- getCType (tys .&. 0x0f)
 
@@ -178,35 +172,35 @@ parseMap = do
               vtype = cTypeToTType vctype
 
           items <- FL.replicateM (fromIntegral count) $
-              MapItem <$> compactParser ktype
-                      <*> compactParser vtype
+              MapItem <$> compactDeserialize ktype
+                      <*> compactDeserialize vtype
           return $ VMap items
 
 
 parseCollection
     :: (forall a. IsTType a => FL.FoldList (Value a) -> Value b)
-    -> Parser (Value b)
+    -> G.Get (Value b)
 parseCollection buildValue = do
-    sizeAndType <- P.word8
+    sizeAndType <- G.getWord8
     SomeCType ctype <- getCType (sizeAndType .&. 0x0f)
     count <- case sizeAndType `shiftR` 4 of
                  0xf -> parseVarint
                  n   -> return $ fromIntegral n
     let vtype  = cTypeToTType ctype
-    buildValue <$> FL.replicateM (fromIntegral count) (compactParser vtype)
+    buildValue <$> FL.replicateM (fromIntegral count) (compactDeserialize vtype)
 
-parseSet :: Parser (Value TSet)
+parseSet :: G.Get (Value TSet)
 parseSet = parseCollection VSet
 
-parseList :: Parser (Value TList)
+parseList :: G.Get (Value TList)
 parseList = parseCollection VList
 
-parseStruct :: Parser (Value TStruct)
+parseStruct :: G.Get (Value TStruct)
 parseStruct = loop M.empty 0
   where
-    loop :: HashMap Int16 SomeValue -> Int16 -> Parser (Value TStruct)
+    loop :: HashMap Int16 SomeValue -> Int16 -> G.Get (Value TStruct)
     loop fields lastFieldId = do
-        sizeAndType <- P.word8
+        sizeAndType <- G.getWord8
         SomeCType ctype <- getCType (sizeAndType .&. 0x0f)
         case ctype of
             CStop -> return (VStruct fields)
@@ -219,7 +213,7 @@ parseStruct = loop M.empty 0
                   CBoolFalse -> return (SomeValue $ VBool False)
                   _          ->
                     let vtype = cTypeToTType ctype
-                     in SomeValue <$> compactParser vtype
+                     in SomeValue <$> compactDeserialize vtype
                 loop (M.insert fieldId value fields) fieldId
 
 

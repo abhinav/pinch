@@ -1,3 +1,11 @@
+XXXXX (202XXXXX)
+================
+
+Breaking changes:
+
+-   The protocol parsers now use the cereal library and the Pinch.Protocol.Parser module has been removed.
+    Custom protocol implementations need to be ported to the cereal parsers.
+
 0.3.5.1 (2020-12-29)
 ====================
 
