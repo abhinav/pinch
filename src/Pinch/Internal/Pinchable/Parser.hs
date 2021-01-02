@@ -89,5 +89,5 @@ runParser p = unParser p Left Right
 -- | Allows handling parse errors.
 parserCatch
     :: Parser a -> (String -> Parser b) -> (a -> Parser b) -> Parser b
-parserCatch = unParser
+parserCatch p f g = unParser p f g
 {-# INLINE parserCatch #-}
