@@ -25,6 +25,8 @@ module Pinch.Internal.Builder
     , doubleBE
     , doubleLE
     , byteString
+
+    , getSize
     ) where
 
 import Data.ByteString              (ByteString)
@@ -145,3 +147,7 @@ byteString (BI.PS fp off len) =
     withForeignPtr fp $ \src ->
         BI.memcpy dst (src `plusPtr` off) len
 {-# INLINE byteString #-}
+
+-- | Returns the number of bytes in the builder.
+getSize :: Builder -> Int
+getSize (B sz _) = sz
