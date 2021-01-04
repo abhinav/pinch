@@ -50,16 +50,20 @@ library:
   source-dirs: src
   exposed-modules:
     - Pinch
+    - Pinch.Client
     - Pinch.Internal.Builder
+    - Pinch.Internal.Exception
     - Pinch.Internal.FoldList
     - Pinch.Internal.Generic
     - Pinch.Internal.Message
     - Pinch.Internal.Pinchable
+    - Pinch.Internal.RPC
     - Pinch.Internal.TType
     - Pinch.Internal.Value
     - Pinch.Protocol
     - Pinch.Protocol.Binary
     - Pinch.Protocol.Compact
+    - Pinch.Server
     - Pinch.Transport
   dependencies:
     - array >= 0.5
@@ -72,6 +76,8 @@ tests:
     main: Spec.hs
     source-dirs: tests
     dependencies:
+      - async >= 2.2.2 && < 2.3
       - hspec >= 2.0
+      - network-run >= 0.2.4 && < 0.3
       - pinch
       - QuickCheck >= 2.5

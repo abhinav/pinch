@@ -46,16 +46,20 @@ source-repository head
 library
   exposed-modules:
       Pinch
+      Pinch.Client
       Pinch.Internal.Builder
+      Pinch.Internal.Exception
       Pinch.Internal.FoldList
       Pinch.Internal.Generic
       Pinch.Internal.Message
       Pinch.Internal.Pinchable
+      Pinch.Internal.RPC
       Pinch.Internal.TType
       Pinch.Internal.Value
       Pinch.Protocol
       Pinch.Protocol.Binary
       Pinch.Protocol.Compact
+      Pinch.Server
       Pinch.Transport
   other-modules:
       Pinch.Internal.Bits
@@ -87,6 +91,7 @@ test-suite pinch-spec
   main-is: Spec.hs
   other-modules:
       Pinch.Arbitrary
+      Pinch.ClientServerSpec
       Pinch.Expectations
       Pinch.Internal.BuilderParserSpec
       Pinch.Internal.BuilderSpec
@@ -107,12 +112,14 @@ test-suite pinch-spec
       hspec-discover:hspec-discover >=2.1
   build-depends:
       QuickCheck >=2.5
+    , async >=2.2.2 && <2.3
     , base >=4.7 && <5
     , bytestring >=0.10 && <0.11
     , cereal >=0.5.8.1 && <0.6
     , containers >=0.5 && <0.7
     , hspec >=2.0
     , network >=3.1 && <3.2
+    , network-run >=0.2.4 && <0.3
     , pinch
     , semigroups >=0.18 && <0.20
     , text >=1.2 && <1.3
