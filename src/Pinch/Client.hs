@@ -30,19 +30,13 @@ newtype Client = Client Channel
 
 -- | A call to a Thrift server resulting in the return datatype `a`.
 data ThriftCall a where
-  TCall :: !T.Text -> !(Value TStruct) -> ThriftCall a
+  TCall :: (Pinchable a, Tag a ~ TStruct) => !T.Text -> !(Value TStruct) -> ThriftCall a
   TOneway :: !T.Text -> !(Value TStruct) -> ThriftCall ()
-
--- | An error occured while processing a thrift call.
--- Signals errors like premature EOF, Thrift protocol parsing failures etc.
-data ThriftError = ThriftError T.Text
-  deriving (Show, Eq)
-instance Exception ThriftError
 
 -- | Calls a Thrift service and returns the result/error data structure.
 -- Application-level exceptions defined in the thrift service are returned
 -- as part of the result/error data structure.
-call :: (Pinchable a, Tag a ~ TStruct) => Client -> ThriftCall a -> IO a
+call :: Client -> ThriftCall a -> IO a
 call (Client (Channel tIn tOut pIn pOut)) tcall = do
   case tcall of
     TOneway m r -> do

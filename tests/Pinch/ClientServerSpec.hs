@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -7,6 +8,8 @@ module Pinch.ClientServerSpec (spec) where
 
 import           Control.Concurrent       (forkFinally, threadDelay)
 import           Control.Concurrent.Async (withAsync)
+import           Control.Concurrent.MVar  (MVar, newEmptyMVar, putMVar,
+                                           takeMVar)
 import           Control.Exception        (bracket, bracketOnError, finally)
 import           Control.Monad            (forever, void)
 import           Data.ByteString          (ByteString)
@@ -27,15 +30,18 @@ import qualified Data.Serialize.Get       as G
 import           Pinch
 import           Pinch.Arbitrary          (SomeByteString (..))
 import           Pinch.Client
+import           Pinch.Internal.Exception
 import           Pinch.Internal.Message
 import           Pinch.Internal.RPC
+import           Pinch.Internal.Value
 import           Pinch.Protocol
 import           Pinch.Server
 import           Pinch.Transport
 
 echoServer :: ThriftServer
-echoServer = createServer $ \_ _ (r :: Value TStruct) ->
-  pure r
+echoServer = createServer $ \_ _ (r :: Value TStruct) -> do
+  putStrLn $ show r
+  pure $ Just r
 
 data CalcRequest = CalcRequest
   { inp1 :: Field 1 Int32
@@ -61,7 +67,13 @@ calcServer = createServer $ \_ _ r@(CalcRequest (Field inp1) (Field inp2) (Field
         Minus _ -> CalcResult (Field $ Just $ inp1 - inp2) (Field Nothing)
         Div _ | inp2 == 0 -> CalcResult (Field Nothing) (Field $ Just "div by zero")
         Div _ -> CalcResult (Field $ Just $ inp1 `div` inp2) (Field Nothing)
-  pure ret
+  pure $ Just ret
+
+onewayServer :: IO (ThriftServer, MVar (Value TStruct))
+onewayServer = do
+  ref <- newEmptyMVar
+  let srv = createServer $ \_ _ (r :: Value TStruct) -> putMVar ref r >> pure (Nothing :: Maybe (Value TStruct))
+  pure (srv, ref)
 
 
 spec :: Spec
@@ -86,6 +98,20 @@ spec = do
 
         r4 <- call client $ mkCall 10 0 Div
         r4 `shouldBe` CalcResult (Field Nothing) (Field $ Just "div by zero")
+
+    it "oneway" $ do
+      (srv, ref) <- onewayServer
+      withLoopbackServer srv $ \client -> do
+        let val = struct [1 .= True, 2 .= ("Hello" :: Text)]
+        _ <- call client $ TOneway "test" val
+        r1 <- takeMVar ref
+        r1 `shouldBe` val
+
+        _ <- call client (TCall "test" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
+          case e of
+            ApplicationException msg ty -> ty == InvalidMessageType
+        pure ()
+
   where
     mkCall inp1 inp2 op = TCall "calc" $ pinch $ CalcRequest (Field inp1) (Field inp2) (Field $ op $ Enumeration)
 

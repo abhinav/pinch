@@ -5,6 +5,7 @@
 module Pinch.Internal.Exception
   ( ApplicationException (..)
   , ExceptionType (..)
+  , ThriftError(..)
   )
 where
 
@@ -61,3 +62,9 @@ instance Pinchable ExceptionType where
     if (fromEnum $ minBound @ExceptionType) <= value && value <= (fromEnum $ maxBound @ExceptionType)
       then pure $ toEnum $ fromIntegral value
       else fail $ "Unknown application exception type: " ++ show value
+
+-- | An error occured while processing a thrift call.
+-- Signals errors like premature EOF, Thrift protocol parsing failures etc.
+data ThriftError = ThriftError T.Text
+  deriving (Show, Eq)
+instance Exception ThriftError

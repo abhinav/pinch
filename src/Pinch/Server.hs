@@ -21,7 +21,7 @@ module Pinch.Server
 
 import           Control.Concurrent       (forkFinally)
 import           Control.Exception        (Exception, SomeException, throwIO,
-                                           try)
+                                           try, tryJust)
 import           Control.Monad
 import           Data.Dynamic             (Dynamic (..), fromDynamic, toDyn)
 import           Data.Proxy               (Proxy (..))
@@ -40,7 +40,7 @@ import qualified Pinch.Protocol           as P
 import qualified Pinch.Transport          as T
 
 -- | A `Thrift` server. Takes the context and the request message as input and produces a reply message.
-newtype ThriftServer = ThriftServer { unThriftServer :: Context -> Message -> IO Message }
+newtype ThriftServer = ThriftServer { unThriftServer :: Context -> Message -> IO (Maybe Message) }
 
 data ParseError = ParseError T.Text
   deriving (Show, Eq)
@@ -75,19 +75,21 @@ lookupInContext (Context m) = do
 
 
 -- | Creates a new thrift server processing requests with the function `f`.
-createServer :: (Pinchable c, Pinchable r, Tag c ~ TStruct, Tag r ~ TStruct) => (Context -> T.Text -> c -> IO r) -> ThriftServer
+createServer :: (Pinchable c, Pinchable r, Tag c ~ TStruct, Tag r ~ TStruct) => (Context -> T.Text -> c -> IO (Maybe r)) -> ThriftServer
 createServer f = ThriftServer $ \ctx msg -> do
   case runParser $ unpinch $ messagePayload msg of
     Right args -> do
       ret <- f ctx (messageName msg) args
-      pure $ Message
-        { messageName = messageName msg
-        , messageType = Reply
-        , messageId   = messageId msg
-        , messagePayload = pinch ret
-        }
+      pure $ case ret of
+        Nothing -> Nothing
+        Just ret -> Just $ Message
+          { messageName = messageName msg
+          , messageType = Reply
+          , messageId   = messageId msg
+          , messagePayload = pinch ret
+          }
     Left err -> do
-      pure $ msgAppEx msg $ ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
+      pure $ Just $ msgAppEx msg $ ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
 
 -- | Run a Thrift server for a single connection.
 runConnection :: Context -> ThriftServer -> Channel -> IO ()
@@ -99,16 +101,23 @@ runConnection ctx srv chan = do
       throwIO $ ParseError $ T.pack err
     T.RRSuccess call -> do
       reply <- case messageType call of
+        Oneway -> do
+          r <- tryJust (\(_ :: SomeException) -> Just ()) $ unThriftServer srv ctx call
+          -- no matter what happens, we can never send back an error
+          -- because the client is not listening for oneway calls...
+          pure Nothing
         Call -> do
           r <- try $ unThriftServer srv ctx call
           case r of
-            Left (e :: SomeException) -> pure $ msgAppEx call $
-              ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
-            Right x -> pure x
-        t -> pure $ msgAppEx call $ ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
-      T.writeMessage (cTransportOut chan) $ P.serializeMessage (cProtocolOut chan) reply
+            Left (e :: SomeException) -> serverError call e
+            Right (Just x) -> pure $ Just x
+            Right (Nothing) -> wrongMsgType call $ "Wrong message type. Expected 'Oneway', got 'Call'."
+        t -> pure $ Just $ msgAppEx call $ ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
+      traverse (T.writeMessage (cTransportOut chan) . P.serializeMessage (cProtocolOut chan)) reply
       runConnection ctx srv chan
   where
+    serverError call e = pure $ Just $ msgAppEx call $ ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
+    wrongMsgType call e = pure $ Just $ msgAppEx call $ ApplicationException e InvalidMessageType
 
 msgAppEx :: Message -> ApplicationException -> Message
 msgAppEx req ex = Message
