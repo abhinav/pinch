@@ -17,6 +17,7 @@ import           Pinch.Internal.TType
 
 import qualified Data.Text                as T
 
+-- | Thrift application exception as defined in <https://github.com/apache/thrift/blob/master/doc/specs/thrift-rpc.md#response-struct>.
 data ApplicationException
   = ApplicationException
   { appExMessage :: T.Text
@@ -38,18 +39,20 @@ instance Pinchable ApplicationException where
     <$> value .: 1
     <*> value .: 2
 
+-- | Thrift exception type as defined in <https://github.com/apache/thrift/blob/master/doc/specs/thrift-rpc.md#response-struct>.
 data ExceptionType
-  = Unknown
-  | UnknownMethod
-  | InvalidMessageType
-  | WrongMethodName
-  | BadSequenceId
-  | MissingResult
-  | InternalError
-  | ProtocolError
-  | InvalidTransform
-  | InvalidProtocol
-  | UnsupportedClientType
+  -- DO NOT RE-ORDER, the enum values need to match the ones defined in the Thrift specification!
+  = Unknown               -- 0
+  | UnknownMethod         -- 1
+  | InvalidMessageType    -- 2
+  | WrongMethodName       -- 3
+  | BadSequenceId         -- 4
+  | MissingResult         -- 5
+  | InternalError         -- 6
+  | ProtocolError         -- 7
+  | InvalidTransform      -- 8
+  | InvalidProtocol       -- 9
+  | UnsupportedClientType -- 10
   deriving (Show, Eq, Enum, Bounded)
 
 instance Pinchable ExceptionType where
