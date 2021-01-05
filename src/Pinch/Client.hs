@@ -30,7 +30,7 @@ newtype Client = Client Channel
 data ThriftCall a where
   TCall :: (Pinchable req, Tag req ~ TStruct, Pinchable res, Tag res ~ TStruct)
     => !T.Text -> !req -> ThriftCall res
-  TOneway :: !T.Text -> !(Value TStruct) -> ThriftCall ()
+  TOneway :: (Pinchable req, Tag req ~ TStruct) => !T.Text -> !req -> ThriftCall ()
 
 -- | Calls a Thrift service and returns the result/error data structure.
 -- Application-level exceptions defined in the thrift service are returned

@@ -1,12 +1,15 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE GADTs                     #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeFamilies              #-}
 
 module Pinch.Server
-  ( ThriftServer(..)
+  ( ThriftServer (..)
+  , Request (..)
   , ParseError (..)
   , Channel (..)
   , Context
@@ -15,6 +18,7 @@ module Pinch.Server
   , lookupInContext
 
   , createServer
+  , Handler(..)
   , runConnection
   ) where
 
@@ -35,8 +39,12 @@ import           Pinch.Internal.TType
 
 import qualified Pinch.Transport          as T
 
+data Request out where
+  RCall :: !Message -> Request Message
+  ROneway :: !Message -> Request ()
+
 -- | A `Thrift` server. Takes the context and the request message as input and produces a reply message.
-newtype ThriftServer = ThriftServer { unThriftServer :: Context -> Message -> IO (Maybe Message) }
+newtype ThriftServer = ThriftServer { unThriftServer :: forall a . Context -> Request a -> IO a }
 
 data ParseError = ParseError T.Text
   deriving (Show, Eq)
@@ -69,23 +77,42 @@ lookupInContext (Context m) = do
     Nothing -> error "Impossible!"
     Just y  -> pure y
 
+data Handler where
+  CallHandler :: (Pinchable c, Tag c ~ TStruct, Pinchable r, Tag r ~ TStruct) => (Context -> c -> IO r) -> Handler
+  OnewayHandler :: (Pinchable c, Tag c ~ TStruct) => (Context -> c -> IO ()) -> Handler
 
 -- | Creates a new thrift server processing requests with the function `f`.
-createServer :: (Pinchable c, Pinchable r, Tag c ~ TStruct, Tag r ~ TStruct) => (Context -> T.Text -> c -> IO (Maybe r)) -> ThriftServer
-createServer f = ThriftServer $ \ctx msg -> do
-  case runParser $ unpinch $ messagePayload msg of
-    Right args -> do
-      ret <- f ctx (messageName msg) args
-      pure $ case ret of
-        Nothing -> Nothing
-        Just ret -> Just $ Message
-          { messageName = messageName msg
-          , messageType = Reply
-          , messageId   = messageId msg
-          , messagePayload = pinch ret
-          }
-    Left err -> do
-      pure $ Just $ msgAppEx msg $ ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
+createServer :: (T.Text -> Maybe Handler) -> ThriftServer
+createServer f = ThriftServer $ \ctx req ->
+  case req of
+    RCall msg ->
+      case f $ messageName msg of
+        Just (CallHandler f) ->
+          case runParser $ unpinch $ messagePayload msg of
+            Right args -> do
+              ret <- f ctx args
+              pure $ Message
+                  { messageName = messageName msg
+                  , messageType = Reply
+                  , messageId   = messageId msg
+                  , messagePayload = pinch ret
+                  }
+            Left err ->
+              pure $ msgAppEx msg $ ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
+
+        Just (OnewayHandler _) ->
+          pure $ msgAppEx msg $ ApplicationException "Expected message type Call, got Oneway." InvalidMessageType
+        Nothing ->
+          pure $ msgAppEx msg $ ApplicationException "Unknown method name." WrongMethodName
+
+    ROneway msg ->
+      case f $ messageName msg of
+        Just (OnewayHandler f) -> do
+          case runParser $ unpinch $ messagePayload msg of
+            Right args -> f ctx args
+            Left _     -> pure ()
+        _ -> pure ()
+
 
 -- | Run a Thrift server for a single connection.
 runConnection :: Context -> ThriftServer -> Channel -> IO ()
@@ -97,21 +124,19 @@ runConnection ctx srv chan = do
       throwIO $ ParseError $ T.pack err
     T.RRSuccess call -> do
       case messageType call of
+        Call -> do
+          r <- try $ unThriftServer srv ctx (RCall call)
+          case r of
+            Left (e :: SomeException) -> writeMessage chan $ msgAppEx call $
+              ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
+            Right x -> writeMessage chan x
         Oneway -> do
-          _ <- tryJust (\(_ :: SomeException) -> Just ()) $ unThriftServer srv ctx call
+          _ <- tryJust (\(_ :: SomeException) -> Just ()) $ unThriftServer srv ctx (ROneway call)
           -- no matter what happens, we can never send back an error
           -- because the client is not listening for oneway calls...
           -- If you want to log this, you should use a custom Thrift server to intercept
           -- all messages.
           pure ()
-        Call -> do
-          r <- try $ unThriftServer srv ctx call
-          case r of
-            Left (e :: SomeException) -> writeMessage chan $ msgAppEx call $
-              ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
-            Right (Just x) -> writeMessage chan x
-            Right (Nothing) -> writeMessage chan $
-              msgAppEx call $ ApplicationException "Wrong message type. Expected 'Oneway', got 'Call'." InvalidMessageType
         t -> writeMessage chan $ msgAppEx call $ ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
       runConnection ctx srv chan
 

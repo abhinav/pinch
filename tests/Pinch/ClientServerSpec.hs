@@ -30,8 +30,8 @@ import           Pinch.Server
 import           Pinch.Transport
 
 echoServer :: ThriftServer
-echoServer = createServer $ \_ _ (r :: Value TStruct) -> do
-  pure $ Just r
+echoServer = createServer $ \_ -> Just $ CallHandler $ \_ (r :: Value TStruct) -> do
+  pure r
 
 data CalcRequest = CalcRequest
   { inp1 :: Field 1 Int32
@@ -51,18 +51,18 @@ data CalcResult = CalcResult
 instance Pinchable CalcResult
 
 calcServer :: ThriftServer
-calcServer = createServer $ \_ _ (CalcRequest (Field inp1) (Field inp2) (Field op)) -> do
+calcServer = createServer $ \_ -> Just $ CallHandler $ \_ (CalcRequest (Field inp1) (Field inp2) (Field op)) -> do
   let ret = case op of
         Plus _ -> CalcResult (Field $ Just $ inp1 + inp2) (Field Nothing)
         Minus _ -> CalcResult (Field $ Just $ inp1 - inp2) (Field Nothing)
         Div _ | inp2 == 0 -> CalcResult (Field Nothing) (Field $ Just "div by zero")
         Div _ -> CalcResult (Field $ Just $ inp1 `div` inp2) (Field Nothing)
-  pure $ Just ret
+  pure ret
 
 onewayServer :: IO (ThriftServer, MVar (Value TStruct))
 onewayServer = do
   ref <- newEmptyMVar
-  let srv = createServer $ \_ _ (r :: Value TStruct) -> putMVar ref r >> pure (Nothing :: Maybe (Value TStruct))
+  let srv = createServer $ \_ -> Just $ OnewayHandler $ \_ (r :: Value TStruct) -> putMVar ref r
   pure (srv, ref)
 
 
