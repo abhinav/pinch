@@ -6,16 +6,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Pinch.ClientServerSpec (spec) where
 
-import           Control.Concurrent       (forkFinally, threadDelay)
+import           Control.Concurrent       (forkFinally)
 import           Control.Concurrent.Async (withAsync)
 import           Control.Concurrent.MVar  (MVar, newEmptyMVar, putMVar,
                                            takeMVar)
-import           Control.Exception        (bracket, bracketOnError, finally)
+import           Control.Exception        (bracketOnError, finally)
 import           Control.Monad            (forever, void)
-import           Data.ByteString          (ByteString)
 import           Data.Int
-import           Data.IORef               (IORef, modifyIORef, newIORef,
-                                           readIORef, writeIORef)
 import           Data.Text                (Text)
 import           GHC.Generics             (Generic)
 import           Network.Run.TCP          (runTCPClient)
@@ -24,23 +21,16 @@ import           Test.Hspec
 import           Test.Hspec.QuickCheck
 import           Test.QuickCheck
 
-import qualified Data.ByteString          as BS
-import qualified Data.Serialize.Get       as G
-
 import           Pinch
-import           Pinch.Arbitrary          (SomeByteString (..))
+import           Pinch.Arbitrary ()
 import           Pinch.Client
 import           Pinch.Internal.Exception
-import           Pinch.Internal.Message
 import           Pinch.Internal.RPC
-import           Pinch.Internal.Value
-import           Pinch.Protocol
 import           Pinch.Server
 import           Pinch.Transport
 
 echoServer :: ThriftServer
 echoServer = createServer $ \_ _ (r :: Value TStruct) -> do
-  putStrLn $ show r
   pure $ Just r
 
 data CalcRequest = CalcRequest
@@ -61,7 +51,7 @@ data CalcResult = CalcResult
 instance Pinchable CalcResult
 
 calcServer :: ThriftServer
-calcServer = createServer $ \_ _ r@(CalcRequest (Field inp1) (Field inp2) (Field op)) -> do
+calcServer = createServer $ \_ _ (CalcRequest (Field inp1) (Field inp2) (Field op)) -> do
   let ret = case op of
         Plus _ -> CalcResult (Field $ Just $ inp1 + inp2) (Field Nothing)
         Minus _ -> CalcResult (Field $ Just $ inp1 - inp2) (Field Nothing)
@@ -79,7 +69,7 @@ onewayServer = do
 spec :: Spec
 spec = do
   describe "Client/Server" $ do
-    prop "echo test" $ withMaxSuccess 10 $ \request -> ioProperty $
+    prop "echo test" $ withMaxSuccess 10 $ \(request :: Value TStruct) -> ioProperty $
       withLoopbackServer echoServer $ \client -> do
         reply <- call client $ TCall "" request
         pure $
@@ -109,7 +99,7 @@ spec = do
 
         _ <- call client (TCall "test" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
           case e of
-            ApplicationException msg ty -> ty == InvalidMessageType
+            ApplicationException _ ty -> ty == InvalidMessageType
         pure ()
 
   where

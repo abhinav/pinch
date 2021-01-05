@@ -12,7 +12,7 @@ module Pinch.Client
   , simpleClient
   ) where
 
-import           Control.Exception        (Exception, throwIO)
+import           Control.Exception        (throwIO)
 
 import qualified Data.Text                as T
 
@@ -30,7 +30,8 @@ newtype Client = Client Channel
 
 -- | A call to a Thrift server resulting in the return datatype `a`.
 data ThriftCall a where
-  TCall :: (Pinchable a, Tag a ~ TStruct) => !T.Text -> !(Value TStruct) -> ThriftCall a
+  TCall :: (Pinchable req, Tag req ~ TStruct, Pinchable res, Tag res ~ TStruct)
+    => !T.Text -> !req -> ThriftCall res
   TOneway :: !T.Text -> !(Value TStruct) -> ThriftCall ()
 
 -- | Calls a Thrift service and returns the result/error data structure.
@@ -40,10 +41,10 @@ call :: Client -> ThriftCall a -> IO a
 call (Client (Channel tIn tOut pIn pOut)) tcall = do
   case tcall of
     TOneway m r -> do
-      writeMessage tOut $ serializeMessage pOut $ Message m Oneway 0 r
+      writeMessage tOut $ serializeMessage pOut $ Message m Oneway 0 (pinch r)
       pure ()
     TCall m r -> do
-      writeMessage tOut $ serializeMessage pOut $ Message m Call 0 r
+      writeMessage tOut $ serializeMessage pOut $ Message m Call 0 (pinch r)
       reply <- readMessage tIn $ deserializeMessage' pIn
       case reply of
         RREOF -> throwIO $ ThriftError $ "Reached EOF while awaiting reply"
