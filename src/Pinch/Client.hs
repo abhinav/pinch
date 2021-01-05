@@ -22,8 +22,6 @@ import           Pinch.Internal.Pinchable
 import           Pinch.Internal.RPC
 import           Pinch.Internal.TType
 import           Pinch.Internal.Value
-import           Pinch.Protocol
-import           Pinch.Transport
 
 -- | A simple Thrift Client.
 newtype Client = Client Channel
@@ -38,14 +36,14 @@ data ThriftCall a where
 -- Application-level exceptions defined in the thrift service are returned
 -- as part of the result/error data structure.
 call :: Client -> ThriftCall a -> IO a
-call (Client (Channel tIn tOut pIn pOut)) tcall = do
+call (Client chan) tcall = do
   case tcall of
     TOneway m r -> do
-      writeMessage tOut $ serializeMessage pOut $ Message m Oneway 0 (pinch r)
+      writeMessage chan $ Message m Oneway 0 (pinch r)
       pure ()
     TCall m r -> do
-      writeMessage tOut $ serializeMessage pOut $ Message m Call 0 (pinch r)
-      reply <- readMessage tIn $ deserializeMessage' pIn
+      writeMessage chan $ Message m Call 0 (pinch r)
+      reply <- readMessage chan
       case reply of
         RREOF -> throwIO $ ThriftError $ "Reached EOF while awaiting reply"
         RRFailure err -> throwIO $ ThriftError $ "Could not read message: " <> T.pack err

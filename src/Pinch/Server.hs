@@ -10,7 +10,7 @@ module Pinch.Server
   , ParseError (..)
   , Channel (..)
   , Context
-  , ContextItem (..)
+  , ContextItem
   , addToContext
   , lookupInContext
 
@@ -18,11 +18,8 @@ module Pinch.Server
   , runConnection
   ) where
 
-
-import           Control.Concurrent       (forkFinally)
 import           Control.Exception        (Exception, SomeException, throwIO,
                                            try, tryJust)
-import           Control.Monad
 import           Data.Dynamic             (Dynamic (..), fromDynamic, toDyn)
 import           Data.Proxy               (Proxy (..))
 import           Data.Typeable            (TypeRep, Typeable, typeOf, typeRep)
@@ -36,7 +33,6 @@ import           Pinch.Internal.Pinchable
 import           Pinch.Internal.RPC
 import           Pinch.Internal.TType
 
-import qualified Pinch.Protocol           as P
 import qualified Pinch.Transport          as T
 
 -- | A `Thrift` server. Takes the context and the request message as input and produces a reply message.
@@ -94,30 +90,30 @@ createServer f = ThriftServer $ \ctx msg -> do
 -- | Run a Thrift server for a single connection.
 runConnection :: Context -> ThriftServer -> Channel -> IO ()
 runConnection ctx srv chan = do
-  msg <- T.readMessage (cTransportIn chan) $ P.deserializeMessage' (cProtocolIn chan)
+  msg <- readMessage chan
   case msg of
     T.RREOF -> pure ()
     T.RRFailure err -> do
       throwIO $ ParseError $ T.pack err
     T.RRSuccess call -> do
-      reply <- case messageType call of
+      case messageType call of
         Oneway -> do
-          r <- tryJust (\(_ :: SomeException) -> Just ()) $ unThriftServer srv ctx call
+          _ <- tryJust (\(_ :: SomeException) -> Just ()) $ unThriftServer srv ctx call
           -- no matter what happens, we can never send back an error
           -- because the client is not listening for oneway calls...
-          pure Nothing
+          -- If you want to log this, you should use a custom Thrift server to intercept
+          -- all messages.
+          pure ()
         Call -> do
           r <- try $ unThriftServer srv ctx call
           case r of
-            Left (e :: SomeException) -> serverError call e
-            Right (Just x) -> pure $ Just x
-            Right (Nothing) -> wrongMsgType call $ "Wrong message type. Expected 'Oneway', got 'Call'."
-        t -> pure $ Just $ msgAppEx call $ ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
-      traverse (T.writeMessage (cTransportOut chan) . P.serializeMessage (cProtocolOut chan)) reply
+            Left (e :: SomeException) -> writeMessage chan $ msgAppEx call $
+              ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
+            Right (Just x) -> writeMessage chan x
+            Right (Nothing) -> writeMessage chan $
+              msgAppEx call $ ApplicationException "Wrong message type. Expected 'Oneway', got 'Call'." InvalidMessageType
+        t -> writeMessage chan $ msgAppEx call $ ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
       runConnection ctx srv chan
-  where
-    serverError call e = pure $ Just $ msgAppEx call $ ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
-    wrongMsgType call e = pure $ Just $ msgAppEx call $ ApplicationException e InvalidMessageType
 
 msgAppEx :: Message -> ApplicationException -> Message
 msgAppEx req ex = Message
