@@ -20,6 +20,9 @@ module Pinch.Server
   , createServer
   , Handler(..)
   , runConnection
+
+  , ServiceName (..)
+  , multiplex
   ) where
 
 import           Control.Exception        (Exception, SomeException, throwIO,
@@ -43,6 +46,14 @@ data Request out where
   RCall :: !Message -> Request Message
   ROneway :: !Message -> Request ()
 
+mapRequest :: (Message -> Message) -> Request o -> Request o
+mapRequest f (RCall m)   = RCall $ f m
+mapRequest f (ROneway m) = ROneway $ f m
+
+getRequestMessage :: Request o -> Message
+getRequestMessage (RCall m)   = m
+getRequestMessage (ROneway m) = m
+
 -- | A `Thrift` server. Takes the context and the request message as input and produces a reply message.
 newtype ThriftServer = ThriftServer { unThriftServer :: forall a . Context -> Request a -> IO a }
 
@@ -54,13 +65,15 @@ instance Exception ParseError
 -- The context is indexed by type.
 newtype Context = Context (HM.HashMap TypeRep Dynamic)
 
-class Typeable a => ContextItem a where
-
 instance Semigroup Context where
   (Context a) <> (Context b) = Context $ a <> b
 
 instance Monoid Context where
   mempty = Context mempty
+
+class Typeable a => ContextItem a where
+
+instance ContextItem ServiceName
 
 
 -- | Adds a new item to the context. If an item with the same
@@ -113,6 +126,31 @@ createServer f = ThriftServer $ \ctx req ->
             Left _     -> pure ()
         _ -> pure ()
 
+multiplex :: [(ServiceName, ThriftServer)] -> ThriftServer
+multiplex services = ThriftServer $ \ctx req -> do
+  case req of
+    RCall msg   -> go ctx req (pure . msgAppEx msg)
+    -- we cannot send the exception back, because it is a oneway call
+    -- instead let's just throw it and crash the server
+    ROneway msg -> go ctx req throwIO
+  where
+    srvMap = HM.fromList services
+
+    go :: Context -> Request a -> (ApplicationException -> IO a) -> IO a
+    go ctx req onError = do
+      let (prefix, rem) = T.span (/= ':') (messageName $ getRequestMessage req)
+      let prefix' = ServiceName prefix
+      let ctx' = addToContext prefix' ctx
+      case prefix' `HM.lookup` srvMap of
+        _ | T.null rem -> onError $ ApplicationException "Invalid method name, expecting a dot." WrongMethodName
+        Just srv -> do
+
+          reply <- unThriftServer srv ctx' $ mapRequest (\msg -> msg { messageName = T.tail rem }) req
+
+          case req of
+            ROneway _ -> pure ()
+            RCall _ -> pure reply
+        Nothing -> onError $ ApplicationException ("No service with name " <> prefix <> " available.") UnknownMethod
 
 -- | Run a Thrift server for a single connection.
 runConnection :: Context -> ThriftServer -> Channel -> IO ()

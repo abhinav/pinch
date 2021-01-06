@@ -9,13 +9,22 @@ module Pinch.Internal.RPC
   , writeMessage
 
   , ReadResult(..)
+
+  , ServiceName(..)
   ) where
 
-import           Pinch.Internal.Message
-import           Pinch.Protocol       (Protocol, deserializeMessage', serializeMessage)
-import           Pinch.Transport      (Connection, Transport, ReadResult(..))
+import           Data.Hashable          (Hashable (..))
+import           Data.String            (IsString (..))
+import           Data.Typeable          (Typeable)
 
-import qualified Pinch.Transport      as Transport
+import qualified Data.Text              as T
+
+import           Pinch.Internal.Message
+import           Pinch.Protocol         (Protocol, deserializeMessage',
+                                         serializeMessage)
+import           Pinch.Transport        (Connection, ReadResult (..), Transport)
+
+import qualified Pinch.Transport        as Transport
 
 -- | A bi-directional channel to read/write Thrift messages.
 data Channel = Channel
@@ -40,3 +49,10 @@ readMessage chan = Transport.readMessage (cTransportIn chan) $ deserializeMessag
 
 writeMessage :: Channel -> Message -> IO ()
 writeMessage chan msg = Transport.writeMessage (cTransportOut chan) $ serializeMessage (cProtocolOut chan) msg
+
+
+newtype ServiceName = ServiceName T.Text
+  deriving (Typeable, Eq, Hashable)
+
+instance IsString ServiceName where
+  fromString = ServiceName . T.pack

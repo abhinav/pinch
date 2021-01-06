@@ -16,7 +16,7 @@ import           Data.Int
 import           Data.Text                (Text)
 import           GHC.Generics             (Generic)
 import           Network.Run.TCP          (runTCPClient)
-import           Network.Socket
+import           Network.Socket           as S
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
 import           Test.QuickCheck
@@ -126,7 +126,7 @@ withLoopbackServer srv cont = do
       createChannel sock framedTransport binaryProtocol
         >>= runConnection mempty srv
 
-    resolve :: SocketType -> Maybe HostName -> ServiceName -> Bool -> IO AddrInfo
+    resolve :: SocketType -> Maybe HostName -> S.ServiceName -> Bool -> IO AddrInfo
     resolve socketType mhost port passive =
         head <$> getAddrInfo (Just hints) mhost (Just port)
       where
