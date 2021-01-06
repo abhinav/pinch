@@ -19,6 +19,7 @@ module Pinch.Server
 
   , createServer
   , Handler(..)
+  , onError
   , runConnection
 
   , ServiceName (..)
@@ -26,7 +27,7 @@ module Pinch.Server
   ) where
 
 import           Control.Exception        (Exception, SomeException, throwIO,
-                                           try, tryJust)
+                                           try, tryJust, catchJust)
 import           Data.Dynamic             (Dynamic (..), fromDynamic, toDyn)
 import           Data.Proxy               (Proxy (..))
 import           Data.Typeable            (TypeRep, Typeable, typeOf, typeRep)
@@ -95,6 +96,10 @@ data Handler where
   OnewayHandler :: (Pinchable c, Tag c ~ TStruct) => (Context -> c -> IO ()) -> Handler
 
 -- | Creates a new thrift server processing requests with the function `f`.
+--
+-- By default, if processing a oneway call fails a haskell exception is thrown which will likely
+-- terminate the guilty connection. You may use the `onError` combinator to handle this case
+-- more gracefully.
 createServer :: (T.Text -> Maybe Handler) -> ThriftServer
 createServer f = ThriftServer $ \ctx req ->
   case req of
@@ -114,17 +119,24 @@ createServer f = ThriftServer $ \ctx req ->
               pure $ msgAppEx msg $ ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
 
         Just (OnewayHandler _) ->
-          pure $ msgAppEx msg $ ApplicationException "Expected message type Call, got Oneway." InvalidMessageType
+          pure $ msgAppEx msg $ ApplicationException "Expected message type Oneway, got Call." InvalidMessageType
         Nothing ->
           pure $ msgAppEx msg $ ApplicationException "Unknown method name." WrongMethodName
 
     ROneway msg ->
+      -- we cannot return errors to the client as it is a oneway call.
+      -- Instead we just throw an exception, possible terminating
+      -- the guilty connection.
       case f $ messageName msg of
         Just (OnewayHandler f) -> do
           case runParser $ unpinch $ messagePayload msg of
             Right args -> f ctx args
-            Left _     -> pure ()
-        _ -> pure ()
+            Left err   ->
+              throwIO $ ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
+        Just (CallHandler _) ->
+          throwIO $ ApplicationException "Expected message type Call, got Oneway." InvalidMessageType
+        Nothing ->
+          throwIO $ ApplicationException "Unknown method name." WrongMethodName
 
 multiplex :: [(ServiceName, ThriftServer)] -> ThriftServer
 multiplex services = ThriftServer $ \ctx req -> do
@@ -152,6 +164,24 @@ multiplex services = ThriftServer $ \ctx req -> do
             RCall _ -> pure reply
         Nothing -> onError $ ApplicationException ("No service with name " <> prefix <> " available.") UnknownMethod
 
+-- | Add error handlers to a `ThriftServer`. Exceptions are caught and not re-thrown, but you may do
+-- so by calling `ioThrow` yourself.
+onError
+  :: Exception e
+  => (e -> Maybe a) -- ^ Select exceptions to handle.
+  -> (a -> IO Message) -- ^ Error handler for normal method calls.
+  -> (a -> IO ()) -- ^ Error handler for oneway calls.
+  -> ThriftServer -> ThriftServer
+onError sel callError onewayError srv = ThriftServer $
+  \ctx req ->
+    catchJust sel
+      (unThriftServer srv ctx req)
+      (\e -> do
+        case req of
+          RCall _ -> callError e
+          ROneway _ -> onewayError e
+      )
+
 -- | Run a Thrift server for a single connection.
 runConnection :: Context -> ThriftServer -> Channel -> IO ()
 runConnection ctx srv chan = do
@@ -169,12 +199,11 @@ runConnection ctx srv chan = do
               ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
             Right x -> writeMessage chan x
         Oneway -> do
-          _ <- tryJust (\(_ :: SomeException) -> Just ()) $ unThriftServer srv ctx (ROneway call)
-          -- no matter what happens, we can never send back an error
-          -- because the client is not listening for oneway calls...
-          -- If you want to log this, you should use a custom Thrift server to intercept
-          -- all messages.
-          pure ()
+          -- no matter what happens, we can never send back an error because the client is not listening for replies
+          -- when doing a oneway calls...
+          -- Let's just crash the connection in this case, to avoid silently swallowing errors.
+          -- `onError` can be used to handle this more gracefully.
+          unThriftServer srv ctx (ROneway call)
         t -> writeMessage chan $ msgAppEx call $ ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
       runConnection ctx srv chan
 
