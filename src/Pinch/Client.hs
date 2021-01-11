@@ -9,6 +9,7 @@ module Pinch.Client
   , ThriftCall(..)
   , ThriftError(..)
   , call
+  , callOrThrow
   , simpleClient
   ) where
 
@@ -21,7 +22,6 @@ import           Pinch.Internal.Message
 import           Pinch.Internal.Pinchable
 import           Pinch.Internal.RPC
 import           Pinch.Internal.TType
-import           Pinch.Internal.Value
 
 -- | A simple Thrift Client.
 newtype Client = Client Channel
@@ -57,6 +57,11 @@ call (Client chan) tcall = do
             Left err ->
               throwIO $ ThriftError $ "Could not parse application exception: " <> T.pack err
           t -> throwIO $ ThriftError $ "Expected reply or exception, got " <> T.pack (show t) <> "."
+
+-- | Calls a Thrift service. If an application-level thrift exception as defined in the Thrift service definition
+-- is returned by the server, it will be re-thrown using `throwIO`.
+callOrThrow :: ThriftResult a => Client -> ThriftCall a -> IO (ResultType a)
+callOrThrow client c = call client c >>= unwrap
 
 -- | Instantiates a new Thrift client.
 simpleClient :: Channel -> Client

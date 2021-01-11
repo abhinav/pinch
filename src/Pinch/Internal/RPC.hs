@@ -11,20 +11,24 @@ module Pinch.Internal.RPC
   , ReadResult(..)
 
   , ServiceName(..)
+  , ThriftResult(..)
   ) where
 
-import           Data.Hashable          (Hashable (..))
-import           Data.String            (IsString (..))
-import           Data.Typeable          (Typeable)
+import           Data.Hashable            (Hashable (..))
+import           Data.String              (IsString (..))
+import           Data.Typeable            (Typeable)
 
-import qualified Data.Text              as T
+import qualified Data.Text                as T
 
 import           Pinch.Internal.Message
-import           Pinch.Protocol         (Protocol, deserializeMessage',
-                                         serializeMessage)
-import           Pinch.Transport        (Connection, ReadResult (..), Transport)
+import           Pinch.Internal.Pinchable (Pinchable, Tag)
+import           Pinch.Internal.TType     (TStruct)
+import           Pinch.Protocol           (Protocol, deserializeMessage',
+                                           serializeMessage)
+import           Pinch.Transport          (Connection, ReadResult (..),
+                                           Transport)
 
-import qualified Pinch.Transport        as Transport
+import qualified Pinch.Transport          as Transport
 
 -- | A bi-directional channel to read/write Thrift messages.
 data Channel = Channel
@@ -56,3 +60,13 @@ newtype ServiceName = ServiceName T.Text
 
 instance IsString ServiceName where
   fromString = ServiceName . T.pack
+
+
+-- | The Result datatype for a Thrift Service Method.
+class (Pinchable a, Tag a ~ TStruct) => ThriftResult a where
+  -- | The Haskell type returned when the Thrift call succeeds.
+  type ResultType a
+  -- | Tries to extract the result from a Thrift call. If the call threw any
+  -- of the Thrift exceptions declared for this Thrift service method,
+  -- the corresponding Haskell excpetions is thrown using `throwIO`.
+  unwrap :: a -> IO (ResultType a)
