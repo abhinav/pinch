@@ -54,8 +54,12 @@ binaryProtocol = Protocol
 
 binarySerializeMessage :: Message -> Builder
 binarySerializeMessage msg =
+    BB.word8 0x80 <>
+    BB.word8 0x01 <>
+    BB.word8 0x00 <>
+    BB.int8 (messageCode $ messageType msg) <>
     string (TE.encodeUtf8 $ messageName msg) <>
-    BB.int8 (messageCode (messageType msg)) <> BB.int32BE (messageId msg) <>
+    BB.int32BE (messageId msg) <>
     binarySerialize (messagePayload msg)
 
 binaryDeserializeMessage :: G.Get Message
