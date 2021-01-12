@@ -22,7 +22,7 @@ import           Test.Hspec.QuickCheck
 import           Test.QuickCheck
 
 import           Pinch
-import           Pinch.Arbitrary ()
+import           Pinch.Arbitrary          ()
 import           Pinch.Client
 import           Pinch.Internal.Exception
 import           Pinch.Internal.RPC
@@ -65,7 +65,6 @@ onewayServer = do
   let srv = createServer $ \_ -> Just $ OnewayHandler $ \_ (r :: Value TStruct) -> putMVar ref r
   pure (srv, ref)
 
-
 spec :: Spec
 spec = do
   describe "Client/Server" $ do
@@ -102,11 +101,21 @@ spec = do
             ApplicationException _ ty -> ty == InvalidMessageType
         pure ()
 
+    it "multiplex" $ do
+      let srv = multiplex [("calc", calcServer), ("echo", echoServer)]
+      withLoopbackServer srv $ \client -> do
+        r1 <- call (multiplexClient client "calc") $ mkCall 10 20 Plus
+        r1 `shouldBe` CalcResult (Field $ Just 30) (Field Nothing)
+
+        let payload = struct [1 .= True, 2 .= ("Hello" :: Text)]
+        r2 <- call (multiplexClient client "echo") $ TCall "" payload
+        r2 `shouldBe` payload
+
   where
     mkCall inp1 inp2 op = TCall "calc" $ pinch $ CalcRequest (Field inp1) (Field inp2) (Field $ op $ Enumeration)
 
 
-withLoopbackServer :: ThriftServer -> (Client -> IO a) -> IO a
+withLoopbackServer :: ThriftServer -> (SimpleClient -> IO a) -> IO a
 withLoopbackServer srv cont = do
     addr <- resolve Stream (Just "127.0.0.1") "54093" True
     bracketOnError (open addr) close (\sock ->
