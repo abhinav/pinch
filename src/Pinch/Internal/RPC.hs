@@ -70,3 +70,8 @@ class (Pinchable a, Tag a ~ TStruct) => ThriftResult a where
   -- of the Thrift exceptions declared for this Thrift service method,
   -- the corresponding Haskell excpetions is thrown using `throwIO`.
   unwrap :: a -> IO (ResultType a)
+
+  -- | Runs the given computation. If it throws any of the exceptions
+  -- declared in the Thrift service definition, it is caught and converted
+  -- to the corresponding Haskell result datatype constructor.
+  wrap :: IO (ResultType a) -> IO a
