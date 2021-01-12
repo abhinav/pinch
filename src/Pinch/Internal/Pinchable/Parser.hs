@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP        #-}
 {-# LANGUAGE Rank2Types #-}
 -- |
 -- Module      :  Pinch.Internal.Pinchable.Parser
@@ -17,6 +18,8 @@ module Pinch.Internal.Pinchable.Parser
 
 import Control.Applicative
 import Control.Monad
+import qualified Control.Monad.Fail as Fail
+
 
 -- | Failure continuation. Called with the failure message.
 type Failure   r = String  -> r
@@ -70,7 +73,13 @@ instance Monad Parser where
             a' kFail $ \a ->
             unParser (k a) kFail kSuccB
 
-instance MonadFail Parser where
+#if !MIN_VERSION_base(4,13,0)
+    -- Monad(fail) was removed in GHC 8.8.1
+    {-# INLINE fail #-}
+    fail = Fail.fail
+#endif
+
+instance Fail.MonadFail Parser where
     {-# INLINE fail #-}
     fail msg = Parser $ \kFail _ -> kFail msg
 
