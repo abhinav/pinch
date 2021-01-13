@@ -10,7 +10,7 @@ import           Control.Concurrent       (forkFinally)
 import           Control.Concurrent.Async (withAsync)
 import           Control.Concurrent.MVar  (MVar, newEmptyMVar, putMVar,
                                            takeMVar)
-import           Control.Exception        (bracketOnError, finally)
+import           Control.Exception        (bracketOnError, finally, throwIO)
 import           Control.Monad            (forever, void)
 import           Data.Int
 import           Data.Text                (Text)
@@ -20,6 +20,8 @@ import           Network.Socket           as S
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
 import           Test.QuickCheck
+
+import qualified Data.Text                as T
 
 import           Pinch
 import           Pinch.Arbitrary          ()
@@ -43,8 +45,8 @@ data Op = Plus (Enumeration 1) | Minus (Enumeration 2) | Div (Enumeration 3)
 instance Pinchable Op
 
 data CalcResult = CalcResult
-  { result :: Field 1 (Maybe Int32)
-  , error  :: Field 2 (Maybe Text)
+  { result   :: Field 1 (Maybe Int32)
+  , errorMsg :: Field 2 (Maybe Text)
   } deriving (Generic, Show, Eq)
 instance Pinchable CalcResult
 
@@ -62,6 +64,13 @@ onewayServer = do
   ref <- newEmptyMVar
   let srv = createServer $ \_ -> Just $ OnewayHandler $ \_ (r :: Value TStruct) -> putMVar ref r
   pure (srv, ref)
+
+errorServer :: ThriftServer
+errorServer = createServer $ \nm -> case nm of
+  "app_ex" -> Just $ CallHandler $ \_ (msg :: Value TStruct) ->
+    throwIO $ ApplicationException "Test" InternalError :: IO (Value TStruct)
+  "hs_ex" -> Just $ CallHandler $ \_ (_ :: Value TStruct) -> error "nononono" :: IO (Value TStruct)
+  _ -> Nothing
 
 spec :: Spec
 spec = do
@@ -108,6 +117,22 @@ spec = do
         let payload = struct [1 .= True, 2 .= ("Hello" :: Text)]
         r2 <- call (multiplexClient client "echo") $ TCall "" payload
         r2 `shouldBe` payload
+
+    it "exceptions" $ do
+      withLoopbackServer errorServer $ \client -> do
+        let val = struct [1 .= True, 2 .= ("Hello" :: Text)]
+        _ <- call client (TCall "app_ex" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
+          case e of
+            ApplicationException msg ty -> msg == "Test" && ty == InternalError
+
+        _ <- call client (TCall "hs_ex" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
+          case e of
+            ApplicationException msg ty -> "nonono" `T.isInfixOf` msg && ty == InternalError
+
+        _ <- call client (TCall "missing" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
+          case e of
+            ApplicationException msg ty -> ty == WrongMethodName
+        pure ()
 
   where
     mkCall inp1 inp2 op = TCall "calc" $ pinch $ CalcRequest (Field inp1) (Field inp2) (Field $ op $ Enumeration)

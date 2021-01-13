@@ -46,8 +46,8 @@ module Pinch.Server
   , mkApplicationExceptionReply
   ) where
 
-import           Control.Exception        (Exception, SomeException, throwIO,
-                                           try, catchJust)
+import           Control.Exception        (Exception, SomeException, catchJust,
+                                           fromException, throwIO, try)
 import           Data.Dynamic             (Dynamic (..), fromDynamic, toDyn)
 import           Data.Proxy               (Proxy (..))
 import           Data.Typeable            (TypeRep, Typeable, typeOf, typeRep)
@@ -170,7 +170,7 @@ createServer f = ThriftServer $ \ctx req ->
 multiplex :: [(ServiceName, ThriftServer)] -> ThriftServer
 multiplex services = ThriftServer $ \ctx req -> do
   case req of
-    RCall msg   -> go ctx req (pure . mkApplicationExceptionReply msg)
+    RCall msg -> go ctx req (pure . mkApplicationExceptionReply msg)
     -- we cannot send the exception back, because it is a oneway call
     -- instead let's just throw it and crash the server
     ROneway _ -> go ctx req throwIO
@@ -190,7 +190,7 @@ multiplex services = ThriftServer $ \ctx req -> do
 
           case req of
             ROneway _ -> pure ()
-            RCall _ -> pure reply
+            RCall _   -> pure reply
         Nothing -> onError $ ApplicationException ("No service with name " <> prefix <> " available.") UnknownMethod
 
 -- | Add error handlers to a `ThriftServer`. Exceptions are caught and not re-thrown, but you may do
@@ -207,7 +207,7 @@ onError sel callError onewayError srv = ThriftServer $
       (unThriftServer srv ctx req)
       (\e -> do
         case req of
-          RCall _ -> callError e
+          RCall _   -> callError e
           ROneway _ -> onewayError e
       )
 
@@ -224,6 +224,9 @@ runConnection ctx srv chan = do
         Call -> do
           r <- try $ unThriftServer srv ctx (RCall call)
           case r of
+            -- if it is already an ApplicationException, we just send it back
+            Left (e :: SomeException)
+              | Just appEx <- fromException e -> writeMessage chan $ mkApplicationExceptionReply call appEx
             Left (e :: SomeException) -> writeMessage chan $ mkApplicationExceptionReply call $
               ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
             Right x -> writeMessage chan x
