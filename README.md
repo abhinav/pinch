@@ -1,12 +1,12 @@
 
-[![build-status]](https://travis-ci.org/abhinav/pinch)
+[![build]](https://github.com/abhinav/pinch)
 
 `pinch` aims to provide an alternative implementation of Apache Thrift for
 Haskell. The `pinch` library itself acts only as a serialization library. Types
 specify their Thrift encoding by defining instances of the `Pinchable`
 typeclass, which may be done by hand or automatically with the use of Generics.
 
-  [build-status]: https://travis-ci.org/abhinav/pinch.svg?branch=master
+  [build]: https://github.com/abhinav/pinch/workflows/build/badge.svg
 
 Haddock documentation for this package is avilable on [Hackage] and [here].
 
@@ -77,9 +77,17 @@ The following Thrift protocols are supported:
 -   Binary
 -   Compact
 
-Caveats
--------
+Supported Transports
+--------------------
 
--   There is no code generation or template haskell support yet so types from
-    the Thrift file will have to be translated by hand.
+The following Thrift transports are supported:
 
+-   Framed
+-   Unframed
+
+Code Generation
+---------------
+
+If you prefer to generate Haskell code from the Thrift files instead of writing
+the necessary Haskell code by hand, you can use the experimental pinch-gen
+code generator to do so. For further details see https://github.com/phile314/pinch-gen/ .

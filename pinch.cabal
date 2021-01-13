@@ -11,9 +11,9 @@ description:    This library provides machinery for types to specify how they ca
                 serialized and deserialized into/from Thrift payloads. It makes no
                 assumptions on how these payloads are sent or received and performs no code
                 generation. Types may specify how to be serialized and deserialized by
-                defining instances of the @Pinchable@ typeclass by hand, or with
-                automatically derived instances by using generics. Check the documentation
-                in the "Pinch" module for more information.
+                defining instances of the @Pinchable@ typeclass by hand, with
+                automatically derived instances by using generics or by using the pinch-gen code
+                generator. Check the documentation in the "Pinch" module for more information.
                 .
                 /What is Thrift?/ Apache Thrift provides an interface description language,
                 a set of communication protocols, and a code generator and libraries for
