@@ -8,8 +8,11 @@
 module Pinch.Client
   (
     -- * Basic Thrift client
-    SimpleClient
-  , simpleClient
+    Client
+  , client
+  , Channel
+  , createChannel
+  , createChannel1
 
   , ThriftCall(..)
   , ThriftClient(..)
@@ -19,6 +22,10 @@ module Pinch.Client
   , MultiplexClient
   , multiplexClient
 
+
+    -- * Errors
+  , ApplicationException(..)
+  , ExceptionType(..)
   , ThriftError(..)
   ) where
 
@@ -33,11 +40,11 @@ import           Pinch.Internal.RPC
 import           Pinch.Internal.TType
 
 -- | A simple Thrift Client.
-newtype SimpleClient = SimpleClient Channel
+newtype Client = Client Channel
 
 -- | Instantiates a new Thrift client.
-simpleClient :: Channel -> SimpleClient
-simpleClient = SimpleClient
+client :: Channel -> Client
+client = Client
 
 -- | A call to a Thrift server resulting in the return datatype `a`.
 data ThriftCall a where
@@ -51,8 +58,8 @@ class ThriftClient c where
   -- as part of the result/error data structure.
   call :: c -> ThriftCall a -> IO a
 
-instance ThriftClient SimpleClient where
-  call (SimpleClient chan) tcall = do
+instance ThriftClient Client where
+  call (Client chan) tcall = do
     case tcall of
       TOneway m r -> do
         writeMessage chan $ Message m Oneway 0 (pinch r)

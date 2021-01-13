@@ -24,8 +24,6 @@ import           Test.QuickCheck
 import           Pinch
 import           Pinch.Arbitrary          ()
 import           Pinch.Client
-import           Pinch.Internal.Exception
-import           Pinch.Internal.RPC
 import           Pinch.Server
 import           Pinch.Transport
 
@@ -115,14 +113,14 @@ spec = do
     mkCall inp1 inp2 op = TCall "calc" $ pinch $ CalcRequest (Field inp1) (Field inp2) (Field $ op $ Enumeration)
 
 
-withLoopbackServer :: ThriftServer -> (SimpleClient -> IO a) -> IO a
+withLoopbackServer :: ThriftServer -> (Client -> IO a) -> IO a
 withLoopbackServer srv cont = do
     addr <- resolve Stream (Just "127.0.0.1") "54093" True
     bracketOnError (open addr) close (\sock ->
       withAsync (loop sock `finally` close sock) $ \_ ->
         runTCPClient "127.0.0.1" "54093" $ \s -> do
-          client <- simpleClient <$> createChannel s framedTransport binaryProtocol
-          cont client
+          c <- client <$> createChannel s framedTransport binaryProtocol
+          cont c
       )
   where
     open addr = bracketOnError (openServerSocket addr) close $ \sock -> do
