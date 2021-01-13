@@ -4,26 +4,47 @@
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeFamilies              #-}
 
 module Pinch.Server
-  ( ThriftServer (..)
+  (
+    -- * Thrift Server creation
+
+    ThriftServer (..)
+  , createServer
+  , Handler(..)
   , Request (..)
+
+    -- * Running a Thrift Server
+  , runConnection
   , ParseError (..)
   , Channel (..)
+
+
+    -- * Thrift Server context
+
+    -- | The context can be used to pass data from the environment to the thrift server functions.
+    -- For example, you could pass the remote host name to the server to use it for logging purposes.
   , Context
   , ContextItem
   , addToContext
   , lookupInContext
 
-  , createServer
-  , Handler(..)
-  , onError
-  , runConnection
-
-  , ServiceName (..)
+    -- * Middlewares
   , multiplex
+  , ServiceName (..)
+  , onError
+
+
+
+    -- * Helper functions
+
+    -- | Functions mostly useful for defining custom `ThriftServer`s.
+  , mapRequestMessage
+  , getRequestMessage
+  , mkApplicationExceptionReply
   ) where
 
 import           Control.Exception        (Exception, SomeException, throwIO,
@@ -43,19 +64,24 @@ import           Pinch.Internal.TType
 
 import qualified Pinch.Transport          as T
 
+-- | A single request to a thrift server.
 data Request out where
   RCall :: !Message -> Request Message
   ROneway :: !Message -> Request ()
 
-mapRequest :: (Message -> Message) -> Request o -> Request o
-mapRequest f (RCall m)   = RCall $ f m
-mapRequest f (ROneway m) = ROneway $ f m
+deriving instance Show (Request out)
 
+-- | Map the message contained in the request.
+mapRequestMessage :: (Message -> Message) -> Request o -> Request o
+mapRequestMessage f (RCall m)   = RCall $ f m
+mapRequestMessage f (ROneway m) = ROneway $ f m
+
+-- | Extract the message contained in the request.
 getRequestMessage :: Request o -> Message
 getRequestMessage (RCall m)   = m
 getRequestMessage (ROneway m) = m
 
--- | A `Thrift` server. Takes the context and the request message as input and produces a reply message.
+-- | A `Thrift` server. Takes the context and the request as input and may produces a reply message.
 newtype ThriftServer = ThriftServer { unThriftServer :: forall a . Context -> Request a -> IO a }
 
 data ParseError = ParseError T.Text
@@ -91,8 +117,11 @@ lookupInContext (Context m) = do
     Nothing -> error "Impossible!"
     Just y  -> pure y
 
+-- | Create a handler for a request type.
 data Handler where
+  -- | Handle normal call requests. Must return a result.
   CallHandler :: (Pinchable c, Tag c ~ TStruct, Pinchable r, Tag r ~ TStruct) => (Context -> c -> IO r) -> Handler
+  -- | Handle oneway requests. Cannot return any result.
   OnewayHandler :: (Pinchable c, Tag c ~ TStruct) => (Context -> c -> IO ()) -> Handler
 
 -- | Creates a new thrift server processing requests with the function `f`.
@@ -116,12 +145,14 @@ createServer f = ThriftServer $ \ctx req ->
                   , messagePayload = pinch ret
                   }
             Left err ->
-              pure $ msgAppEx msg $ ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
+              pure $ mkApplicationExceptionReply msg $
+                ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
 
         Just (OnewayHandler _) ->
-          pure $ msgAppEx msg $ ApplicationException "Expected message type Oneway, got Call." InvalidMessageType
+          pure $ mkApplicationExceptionReply msg $
+            ApplicationException "Expected message type Oneway, got Call." InvalidMessageType
         Nothing ->
-          pure $ msgAppEx msg $ ApplicationException "Unknown method name." WrongMethodName
+          pure $ mkApplicationExceptionReply msg $ ApplicationException "Unknown method name." WrongMethodName
 
     ROneway msg ->
       -- we cannot return errors to the client as it is a oneway call.
@@ -138,10 +169,13 @@ createServer f = ThriftServer $ \ctx req ->
         Nothing ->
           throwIO $ ApplicationException "Unknown method name." WrongMethodName
 
+-- | Multiplex multiple services into a single `ThriftServer`.
+--
+-- The service name is added to the `Context` and may be retrieved using `lookupInContext @ServiceName ctx`.
 multiplex :: [(ServiceName, ThriftServer)] -> ThriftServer
 multiplex services = ThriftServer $ \ctx req -> do
   case req of
-    RCall msg   -> go ctx req (pure . msgAppEx msg)
+    RCall msg   -> go ctx req (pure . mkApplicationExceptionReply msg)
     -- we cannot send the exception back, because it is a oneway call
     -- instead let's just throw it and crash the server
     ROneway msg -> go ctx req throwIO
@@ -157,7 +191,7 @@ multiplex services = ThriftServer $ \ctx req -> do
         _ | T.null rem -> onError $ ApplicationException "Invalid method name, expecting a dot." WrongMethodName
         Just srv -> do
 
-          reply <- unThriftServer srv ctx' $ mapRequest (\msg -> msg { messageName = T.tail rem }) req
+          reply <- unThriftServer srv ctx' $ mapRequestMessage (\msg -> msg { messageName = T.tail rem }) req
 
           case req of
             ROneway _ -> pure ()
@@ -195,7 +229,7 @@ runConnection ctx srv chan = do
         Call -> do
           r <- try $ unThriftServer srv ctx (RCall call)
           case r of
-            Left (e :: SomeException) -> writeMessage chan $ msgAppEx call $
+            Left (e :: SomeException) -> writeMessage chan $ mkApplicationExceptionReply call $
               ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
             Right x -> writeMessage chan x
         Oneway -> do
@@ -204,11 +238,13 @@ runConnection ctx srv chan = do
           -- Let's just crash the connection in this case, to avoid silently swallowing errors.
           -- `onError` can be used to handle this more gracefully.
           unThriftServer srv ctx (ROneway call)
-        t -> writeMessage chan $ msgAppEx call $ ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
+        t -> writeMessage chan $ mkApplicationExceptionReply call $
+          ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
       runConnection ctx srv chan
 
-msgAppEx :: Message -> ApplicationException -> Message
-msgAppEx req ex = Message
+-- | Builds an exception reply given the corresponding request message.
+mkApplicationExceptionReply :: Message -> ApplicationException -> Message
+mkApplicationExceptionReply req ex = Message
   { messageName = messageName req
   , messageType = Exception
   , messageId = messageId req
