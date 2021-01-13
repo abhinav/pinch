@@ -19,9 +19,10 @@ module Pinch.Server
 
     -- * Running a Thrift Server
   , runConnection
-  , ParseError (..)
+  , ThriftError (..)
   , Channel (..)
-
+  , createChannel
+  , createChannel1
 
     -- * Thrift Server context
 
@@ -37,8 +38,6 @@ module Pinch.Server
   , ServiceName (..)
   , onError
 
-
-
     -- * Helper functions
 
     -- | Functions mostly useful for defining custom `ThriftServer`s.
@@ -48,7 +47,7 @@ module Pinch.Server
   ) where
 
 import           Control.Exception        (Exception, SomeException, throwIO,
-                                           try, tryJust, catchJust)
+                                           try, catchJust)
 import           Data.Dynamic             (Dynamic (..), fromDynamic, toDyn)
 import           Data.Proxy               (Proxy (..))
 import           Data.Typeable            (TypeRep, Typeable, typeOf, typeRep)
@@ -83,10 +82,6 @@ getRequestMessage (ROneway m) = m
 
 -- | A `Thrift` server. Takes the context and the request as input and may produces a reply message.
 newtype ThriftServer = ThriftServer { unThriftServer :: forall a . Context -> Request a -> IO a }
-
-data ParseError = ParseError T.Text
-  deriving (Show, Eq)
-instance Exception ParseError
 
 -- | Allows passing context information to a `ThriftServer`.
 -- The context is indexed by type.
@@ -178,7 +173,7 @@ multiplex services = ThriftServer $ \ctx req -> do
     RCall msg   -> go ctx req (pure . mkApplicationExceptionReply msg)
     -- we cannot send the exception back, because it is a oneway call
     -- instead let's just throw it and crash the server
-    ROneway msg -> go ctx req throwIO
+    ROneway _ -> go ctx req throwIO
   where
     srvMap = HM.fromList services
 
@@ -223,7 +218,7 @@ runConnection ctx srv chan = do
   case msg of
     T.RREOF -> pure ()
     T.RRFailure err -> do
-      throwIO $ ParseError $ T.pack err
+      throwIO $ ThriftError $ T.pack err
     T.RRSuccess call -> do
       case messageType call of
         Call -> do

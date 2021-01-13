@@ -22,10 +22,8 @@ import           Test.Hspec.QuickCheck
 import           Test.QuickCheck
 
 import           Pinch
-import           Pinch.Arbitrary ()
+import           Pinch.Arbitrary          ()
 import           Pinch.Client
-import           Pinch.Internal.Exception
-import           Pinch.Internal.RPC
 import           Pinch.Server
 import           Pinch.Transport
 
@@ -65,7 +63,6 @@ onewayServer = do
   let srv = createServer $ \_ -> Just $ OnewayHandler $ \_ (r :: Value TStruct) -> putMVar ref r
   pure (srv, ref)
 
-
 spec :: Spec
 spec = do
   describe "Client/Server" $ do
@@ -102,6 +99,16 @@ spec = do
             ApplicationException _ ty -> ty == InvalidMessageType
         pure ()
 
+    it "multiplex" $ do
+      let srv = multiplex [("calc", calcServer), ("echo", echoServer)]
+      withLoopbackServer srv $ \client -> do
+        r1 <- call (multiplexClient client "calc") $ mkCall 10 20 Plus
+        r1 `shouldBe` CalcResult (Field $ Just 30) (Field Nothing)
+
+        let payload = struct [1 .= True, 2 .= ("Hello" :: Text)]
+        r2 <- call (multiplexClient client "echo") $ TCall "" payload
+        r2 `shouldBe` payload
+
   where
     mkCall inp1 inp2 op = TCall "calc" $ pinch $ CalcRequest (Field inp1) (Field inp2) (Field $ op $ Enumeration)
 
@@ -112,8 +119,8 @@ withLoopbackServer srv cont = do
     bracketOnError (open addr) close (\sock ->
       withAsync (loop sock `finally` close sock) $ \_ ->
         runTCPClient "127.0.0.1" "54093" $ \s -> do
-          client <- simpleClient <$> createChannel s framedTransport binaryProtocol
-          cont client
+          c <- client <$> createChannel s framedTransport binaryProtocol
+          cont c
       )
   where
     open addr = bracketOnError (openServerSocket addr) close $ \sock -> do
