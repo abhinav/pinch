@@ -233,7 +233,8 @@ runConnection ctx srv chan = do
           -- Let's just crash the connection in this case, to avoid silently swallowing errors.
           -- `onError` can be used to handle this more gracefully.
           unThriftServer srv ctx (ROneway call)
-        t -> writeMessage chan $ mkApplicationExceptionReply call $
+        -- the client must never send Reply/Exception messages.
+        t -> throwIO $
           ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
       runConnection ctx srv chan
 
