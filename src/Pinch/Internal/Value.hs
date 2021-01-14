@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE RankNTypes          #-}
@@ -22,10 +21,6 @@ module Pinch.Internal.Value
     , castValue
     , valueTType
     ) where
-
-#if __GLASGOW_HASKELL__ < 709
-import Data.Monoid (mempty)
-#endif
 
 import Control.DeepSeq     (NFData (..))
 import Data.ByteString     (ByteString)

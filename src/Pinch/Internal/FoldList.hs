@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -27,14 +26,9 @@ module Pinch.Internal.FoldList
 
 import Prelude hiding (foldr, map, mapM, replicate, sequence)
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
-
 import Control.DeepSeq (NFData (..))
 import Data.Hashable   (Hashable (..))
 import Data.List       (intercalate)
-import Data.Semigroup
 import Data.Typeable   (Typeable)
 
 import qualified Control.Monad    as M

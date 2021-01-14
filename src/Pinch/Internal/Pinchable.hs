@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns         #-}
-{-# LANGUAGE CPP                  #-}
 {-# LANGUAGE DefaultSignatures    #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
@@ -41,10 +40,6 @@ module Pinch.Internal.Pinchable
     , runParser
     , parserCatch
     ) where
-
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
 
 import Data.ByteString (ByteString)
 import Data.Hashable   (Hashable)
@@ -240,61 +235,51 @@ instance Pinchable ByteString where
     type Tag ByteString = TBinary
     pinch = VBinary
     unpinch (VBinary b) = return b
-    unpinch x = fail $ "Failed to read binary. Got " ++ show x
 
 instance Pinchable BL.ByteString where
     type Tag BL.ByteString = TBinary
     pinch = VBinary . BL.toStrict
     unpinch (VBinary b) = return (BL.fromStrict b)
-    unpinch x = fail $ "Failed to read binary. Got " ++ show x
 
 instance Pinchable Text where
     type Tag Text = TBinary
     pinch = VBinary . TE.encodeUtf8
     unpinch (VBinary b) = return . TE.decodeUtf8 $ b
-    unpinch x = fail $ "Failed to read string. Got " ++ show x
 
 instance Pinchable TL.Text where
     type Tag TL.Text = TBinary
     pinch = VBinary . BL.toStrict . TLE.encodeUtf8
     unpinch (VBinary b) = return . TL.fromStrict . TE.decodeUtf8 $ b
-    unpinch x = fail $ "Failed to read string. Got " ++ show x
 
 instance Pinchable Bool where
     type Tag Bool = TBool
     pinch = VBool
     unpinch (VBool x) = return x
-    unpinch x = fail $ "Failed to read boolean. Got " ++ show x
 
 instance Pinchable Int8 where
     type Tag Int8 = TByte
     pinch = VByte
     unpinch (VByte x) = return x
-    unpinch x = fail $ "Failed to read byte. Got " ++ show x
 
 instance Pinchable Double where
     type Tag Double = TDouble
     pinch = VDouble
     unpinch (VDouble x) = return x
-    unpinch x = fail $ "Failed to read double. Got " ++ show x
 
 instance Pinchable Int16 where
     type Tag Int16 = TInt16
     pinch = VInt16
     unpinch (VInt16 x) = return x
-    unpinch x = fail $ "Failed to read i16. Got " ++ show x
 
 instance Pinchable Int32 where
     type Tag Int32 = TInt32
     pinch = VInt32
     unpinch (VInt32 x) = return x
-    unpinch x = fail $ "Failed to read i32. Got " ++ show x
 
 instance Pinchable Int64 where
     type Tag Int64 = TInt64
     pinch = VInt64
     unpinch (VInt64 x) = return x
-    unpinch x = fail $ "Failed to read i64. Got " ++ show x
 
 instance Pinchable a => Pinchable (Vector a) where
     type Tag (Vector a) = TList
@@ -303,7 +288,6 @@ instance Pinchable a => Pinchable (Vector a) where
 
     unpinch (VList xs) =
         V.fromList . FL.toList <$> FL.mapM checkedUnpinch xs
-    unpinch x = fail $ "Failed to read list. Got " ++ show x
 
 instance Pinchable a => Pinchable [a] where
     type Tag [a] = TList
@@ -311,7 +295,6 @@ instance Pinchable a => Pinchable [a] where
     pinch = VList . FL.map pinch . FL.fromFoldable
 
     unpinch (VList xs) = FL.toList <$> FL.mapM checkedUnpinch xs
-    unpinch x = fail $ "Failed to read list. Got " ++ show x
 
 instance
   ( Eq k
@@ -335,7 +318,6 @@ instance (Eq a, Hashable a, Pinchable a) => Pinchable (HS.HashSet a) where
     unpinch (VSet xs) =
         FL.foldl' (\s !a -> HS.insert a s) HS.empty
         <$> FL.mapM checkedUnpinch xs
-    unpinch x = fail $ "Failed to read set. Got " ++ show x
 
 instance (Ord a, Pinchable a) => Pinchable (S.Set a) where
     type Tag (S.Set a) = TSet
@@ -344,4 +326,3 @@ instance (Ord a, Pinchable a) => Pinchable (S.Set a) where
     unpinch (VSet xs) =
         FL.foldl' (\s !a -> S.insert a s) S.empty
         <$> FL.mapM checkedUnpinch xs
-    unpinch x = fail $ "Failed to read set. Got " ++ show x

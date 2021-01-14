@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveFoldable             #-}
@@ -16,12 +15,6 @@
 {-# LANGUAGE UndecidableInstances       #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-#if __GLASGOW_HASKELL__ < 709
-{-# LANGUAGE OverlappingInstances       #-}
-#define OVERLAP
-#else
-#define OVERLAP {-# OVERLAPPABLE #-}
-#endif
 -- |
 -- Module      :  Pinch.Internal.Generic
 -- Copyright   :  (c) Abhinav Gupta 2015
@@ -45,13 +38,6 @@ module Pinch.Internal.Generic
     , Void(..)
     ) where
 
-
-#if __GLASGOW_HASKELL__ < 709
-import Data.Foldable    (Foldable)
-import Data.Traversable (Traversable)
-#endif
-
-import Data.Semigroup
 import Control.Applicative
 import Control.DeepSeq     (NFData)
 import Data.Proxy          (Proxy (..))
@@ -74,7 +60,7 @@ instance Combinable TStruct where
     combine (VStruct as) (VStruct bs) = VStruct $ as `HM.union` bs
 
 
-instance OVERLAP GPinchable a => GPinchable (M1 i c a) where
+instance {-# OVERLAPPABLE #-} GPinchable a => GPinchable (M1 i c a) where
     type GTag (M1 i c a) = GTag a
     gPinch = gPinch . unM1
     gUnpinch = fmap M1 . gUnpinch
@@ -150,7 +136,7 @@ putField = Field
 field :: Functor f => (a -> f b) -> Field n a -> f (Field n b)
 field f (Field a) = Field <$> f a
 
-instance OVERLAP (Pinchable a, KnownNat n)
+instance {-# OVERLAPPABLE #-} (Pinchable a, KnownNat n)
   => GPinchable (K1 i (Field n a)) where
     type GTag (K1 i (Field n a)) = TStruct
     gPinch (K1 (Field a)) = struct [n .= a]
@@ -202,7 +188,6 @@ instance KnownNat n => GPinchable (K1 i (Enumeration n)) where
         | otherwise = fail $ "Couldn't match enum value " ++ show i
       where
         val = fromIntegral $ natVal (Proxy :: Proxy n)
-    gUnpinch x = fail $ "Failed to read enum. Got " ++ show x
 
 ------------------------------------------------------------------------------
 

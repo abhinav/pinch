@@ -70,12 +70,12 @@ instance ThriftClient Client where
         case reply of
           RREOF -> throwIO $ ThriftError $ "Reached EOF while awaiting reply"
           RRFailure err -> throwIO $ ThriftError $ "Could not read message: " <> T.pack err
-          RRSuccess reply -> case messageType reply of
-            Reply -> case runParser $ unpinch $ messagePayload reply of
+          RRSuccess reply' -> case messageType reply' of
+            Reply -> case runParser $ unpinch $ messagePayload reply' of
               Right x -> pure x
               Left err -> do
                 throwIO $ ThriftError $ "Could not parse reply payload: " <> T.pack err
-            Exception -> case runParser $ unpinch $ messagePayload reply of
+            Exception -> case runParser $ unpinch $ messagePayload reply' of
               Right (x :: ApplicationException) -> throwIO x
               Left err ->
                 throwIO $ ThriftError $ "Could not parse application exception: " <> T.pack err
@@ -84,7 +84,7 @@ instance ThriftClient Client where
 -- | Calls a Thrift service. If an application-level thrift exception as defined in the Thrift service definition
 -- is returned by the server, it will be re-thrown using `throwIO`.
 callOrThrow :: (ThriftClient c, ThriftResult a) => c -> ThriftCall a -> IO (ResultType a)
-callOrThrow client c = call client c >>= unwrap
+callOrThrow client' c = call client' c >>= unwrap
 
 -- | A multiplexing thrift client.
 data MultiplexClient = forall c . ThriftClient c => MultiplexClient c ServiceName
@@ -94,6 +94,6 @@ multiplexClient :: ThriftClient c => c -> ServiceName -> MultiplexClient
 multiplexClient = MultiplexClient
 
 instance ThriftClient MultiplexClient where
-  call (MultiplexClient client (ServiceName serviceName)) tcall = case tcall of
-    TOneway r req -> call client $ TOneway (serviceName <> ":" <> r) req
-    TCall r req   -> call client $ TCall (serviceName <> ":" <> r) req
+  call (MultiplexClient client' (ServiceName serviceName)) tcall = case tcall of
+    TOneway r req -> call client' $ TOneway (serviceName <> ":" <> r) req
+    TCall r req   -> call client' $ TCall (serviceName <> ":" <> r) req

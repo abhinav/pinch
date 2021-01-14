@@ -43,7 +43,7 @@ keyValueClient url manager = KeyValue
     , setValue = mkRequest "setValue"
     }
   where
-    baseRequest = fromMaybe (error "Invalid URL") (HTTP.parseUrl url)
+    baseRequest = fromMaybe (error "Invalid URL") (HTTP.parseUrlThrow url)
 
     encode = P.encodeMessage P.binaryProtocol
     decode = P.decodeMessage P.binaryProtocol

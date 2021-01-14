@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 -- |
 -- Module      :  Pinch.Internal.Builder
 -- Copyright   :  (c) Abhinav Gupta 2015

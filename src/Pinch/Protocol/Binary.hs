@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- |
@@ -14,16 +13,11 @@
 module Pinch.Protocol.Binary (binaryProtocol) where
 
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
-
 import Control.Monad
 import Data.Bits           (shiftR, (.&.))
 import Data.ByteString     (ByteString)
 import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int8)
-import Data.Monoid
 
 import qualified Data.ByteString        as B
 import qualified Data.HashMap.Strict    as M

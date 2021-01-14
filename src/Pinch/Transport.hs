@@ -111,7 +111,7 @@ runGetWith getBs p initial = go (G.runGetPartial p initial)
   
 -- | Gets exactly n bytes. If EOF is reached, an empty string is returned.
 getExactly :: Connection c => c -> Int -> IO BS.ByteString
-getExactly c n = B.runBuilder <$> go n mempty
+getExactly c sz = B.runBuilder <$> go sz mempty
   where
     go :: Int -> B.Builder -> IO B.Builder
     go n b = do

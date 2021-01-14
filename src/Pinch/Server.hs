@@ -129,10 +129,10 @@ createServer f = ThriftServer $ \ctx req ->
   case req of
     RCall msg ->
       case f $ messageName msg of
-        Just (CallHandler f) ->
+        Just (CallHandler f') ->
           case runParser $ unpinch $ messagePayload msg of
             Right args -> do
-              ret <- f ctx args
+              ret <- f' ctx args
               pure $ Message
                   { messageName = messageName msg
                   , messageType = Reply
@@ -154,9 +154,9 @@ createServer f = ThriftServer $ \ctx req ->
       -- Instead we just throw an exception, possible terminating
       -- the guilty connection.
       case f $ messageName msg of
-        Just (OnewayHandler f) -> do
+        Just (OnewayHandler f') -> do
           case runParser $ unpinch $ messagePayload msg of
-            Right args -> f ctx args
+            Right args -> f' ctx args
             Left err   ->
               throwIO $ ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
         Just (CallHandler _) ->
@@ -178,20 +178,20 @@ multiplex services = ThriftServer $ \ctx req -> do
     srvMap = HM.fromList services
 
     go :: Context -> Request a -> (ApplicationException -> IO a) -> IO a
-    go ctx req onError = do
-      let (prefix, rem) = T.span (/= ':') (messageName $ getRequestMessage req)
+    go ctx req onErr = do
+      let (prefix, method) = T.span (/= ':') (messageName $ getRequestMessage req)
       let prefix' = ServiceName prefix
       let ctx' = addToContext prefix' ctx
       case prefix' `HM.lookup` srvMap of
-        _ | T.null rem -> onError $ ApplicationException "Invalid method name, expecting a dot." WrongMethodName
+        _ | T.null method -> onErr $ ApplicationException "Invalid method name, expecting a colon." WrongMethodName
         Just srv -> do
 
-          reply <- unThriftServer srv ctx' $ mapRequestMessage (\msg -> msg { messageName = T.tail rem }) req
+          reply <- unThriftServer srv ctx' $ mapRequestMessage (\msg -> msg { messageName = T.tail method }) req
 
           case req of
             ROneway _ -> pure ()
             RCall _   -> pure reply
-        Nothing -> onError $ ApplicationException ("No service with name " <> prefix <> " available.") UnknownMethod
+        Nothing -> onErr $ ApplicationException ("No service with name " <> prefix <> " available.") UnknownMethod
 
 -- | Add error handlers to a `ThriftServer`. Exceptions are caught and not re-thrown, but you may do
 -- so by calling `ioThrow` yourself.

@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE RankNTypes          #-}
@@ -15,18 +14,12 @@
 -- Implements the Thrift Compact Protocol as a 'Protocol'.
 module Pinch.Protocol.Compact (compactProtocol) where
 
-
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
-
 import Control.Monad
 import Data.Bits           hiding (shift)
 import Data.ByteString     (ByteString)
 import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int64)
 import Data.List           (sortBy)
-import Data.Monoid
 import Data.Ord            (comparing)
 import Data.Typeable       (Typeable)
 import Data.Word           (Word64, Word8)
