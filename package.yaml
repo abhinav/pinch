@@ -32,6 +32,8 @@ extra-source-files:
 
 ghc-options: -Wall
 
+tested-with: GHC == 8.10.2, GHC == 8.8.3, GHC == 8.6.5, GHC == 8.4.4
+
 dependencies:
   - base >= 4.7 && < 5
   - bytestring >= 0.10 && < 0.11
