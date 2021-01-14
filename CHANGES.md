@@ -1,19 +1,19 @@
-0.4 (2021-XX-XX)
+0.4.0.0 (2021-XX-XX)
 ================
 
 Breaking changes:
 
 -   The protocol parsers now use the cereal library and the Pinch.Protocol.Parser module has been removed.
-    Custom protocol implementations need to be ported to the cereal parsers. ( #28 )
+    Custom protocol implementations need to be ported to the cereal parsers. (#28)
 -   Use new header format for binary protocol. This fixes some compatibility issues with thrift libraries
-    for other languages. ( #33)
+    for other languages. (#33)
 
 Other changes:
 
--   Add implementations of the framed/unframed transports ( `Pinch.Transport`, #29 ).
--   Add Thrift RPC client/server functionality ( `Pinch.Server` / `Pinch.Client` )
+-   Add implementations of the framed/unframed transports (`Pinch.Transport`, #29).
+-   Add Thrift RPC client/server functionality (`Pinch.Server`/`Pinch.Client`).
 -   A new code generator, `pinch-gen`, is available. It can generate code from Thrift files for use
-    with the pinch library. For more details, see  https://github.com/phile314/pinch-gen/ .
+    with the pinch library. For more details, see https://github.com/phile314/pinch-gen/.
 
 0.3.5.1 (2020-12-29)
 ====================
@@ -117,4 +117,3 @@ Other changes:
 ====================
 
 -   Initial release.
-
