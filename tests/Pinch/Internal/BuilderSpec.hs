@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Pinch.Internal.BuilderSpec (spec) where
 
-import Data.Monoid
 import Data.Word             (Word8)
 import Test.Hspec
 import Test.Hspec.QuickCheck

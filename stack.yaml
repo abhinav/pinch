@@ -8,3 +8,6 @@ packages:
 nix:
   enable: false
   packages: [ zlib ]
+
+ghc-options:
+  '$locals': -Werror
