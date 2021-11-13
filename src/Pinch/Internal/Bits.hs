@@ -17,8 +17,15 @@ module Pinch.Internal.Bits
     ) where
 
 #if defined(__GLASGOW_HASKELL__) && !defined(__HADDOCK__)
-import GHC.Base (Int (..), uncheckedShiftL#)
-import GHC.Word (Word16 (..), Word32 (..), Word64 (..), uncheckedShiftL64#)
+import GHC.Base (
+    Int (..),
+#if MIN_VERSION_base(4,16,0)
+    uncheckedShiftLWord16#,
+    uncheckedShiftLWord32#,
+#endif
+    uncheckedShiftL#,
+    )
+import GHC.Word (Word16 (..), Word32 (..), Word64 (..))
 #else
 import Data.Bits (shiftL)
 import Data.Word (Word16, Word32, Word64)
@@ -36,9 +43,14 @@ w64ShiftL :: Word64 -> Int -> Word64
 -- If we're not on GHC, the regular shiftL will be returned.
 
 #if defined(__GLASGOW_HASKELL__) && !defined(__HADDOCK__)
+#if MIN_VERSION_base(4,16,0)
+w16ShiftL (W16# w) (I# i) = W16# (w `uncheckedShiftLWord16#` i)
+w32ShiftL (W32# w) (I# i) = W32# (w `uncheckedShiftLWord32#` i)
+#else
 w16ShiftL (W16# w) (I# i) = W16# (w `uncheckedShiftL#` i)
 w32ShiftL (W32# w) (I# i) = W32# (w `uncheckedShiftL#` i)
-w64ShiftL (W64# w) (I# i) = W64# (w `uncheckedShiftL64#` i)
+#endif
+w64ShiftL (W64# w) (I# i) = W64# (w `uncheckedShiftL#` i)
 #else
 w16ShiftL = shiftL
 w32ShiftL = shiftL
