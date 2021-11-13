@@ -5,7 +5,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        ghc: ['8.4.4', '8.6.5', '8.8.3', '8.10.2']
+        ghc: ['8.4.4', '8.6.5', '8.8.3', '8.10.2', '9.0.1', '9.2.1']
         os: [ubuntu-latest, macOS-latest, windows-latest]
         exclude:
           # a test suite dependency fails on windows/ghc8.8.3
