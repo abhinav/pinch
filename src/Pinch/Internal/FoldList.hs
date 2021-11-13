@@ -121,6 +121,3 @@ instance Semigroup (FoldList a) where
 instance Monoid (FoldList a) where
     mempty = FoldList (\_ r -> r)
     {-# INLINE mempty #-}
-
-    FoldList f1 `mappend` FoldList f2 = FoldList $ \cons nil -> f2 cons (f1 cons nil)
-    {-# INLINE mappend #-}

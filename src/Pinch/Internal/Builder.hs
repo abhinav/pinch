@@ -63,12 +63,6 @@ instance Monoid Builder where
     {-# INLINE mempty #-}
     mempty = B 0 (\_ -> return ())
 
-    {-# INLINE mappend #-}
-    mappend = append
-
-    {-# INLINE mconcat #-}
-    mconcat = foldr mappend mempty
-
 primFixed :: BP.FixedPrim a -> a -> Builder
 primFixed prim a = B (BPI.size prim) (BPI.runF prim a)
 {-# INLINE [1] primFixed #-}
