@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Pinch.Arbitrary
@@ -138,8 +139,9 @@ instance T.IsTType a => Arbitrary (V.Value a) where
         T.TBinary -> shrinkBinary
         T.TStruct ->
             \(V.VStruct xs) -> V.VStruct . M.fromList <$> shrink (M.toList xs)
-        T.TMap ->
-            \(V.VMap xs) -> V.VMap . FL.fromFoldable <$> shrink (FL.toList xs)
+        T.TMap -> \case
+            V.VMap xs -> V.VMap . FL.fromFoldable <$> shrink (FL.toList xs)
+            V.VNullMap -> []
         T.TSet ->
             \(V.VSet xs) -> V.VSet . FL.fromFoldable <$> shrink (FL.toList xs)
         T.TList ->

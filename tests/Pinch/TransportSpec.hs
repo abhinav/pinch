@@ -19,7 +19,7 @@ import qualified Pinch.Internal.Builder as B
 
 data MemoryConnection = MemoryConnection
   { contents :: IORef ByteString
-  , maxChunkSize :: Int -- ^ how many bytes to maximally return for one cGetSome call
+  , _maxChunkSize :: Int -- ^ how many bytes to maximally return for one cGetSome call
   }
 
 newMemoryConnection :: Int -> IO MemoryConnection

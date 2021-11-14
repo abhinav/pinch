@@ -5,7 +5,6 @@ module Pinch.Internal.BuilderParserSpec (spec) where
 import Control.Applicative
 #endif
 
-import Data.Monoid
 import Test.Hspec
 import Test.Hspec.QuickCheck
 

@@ -25,7 +25,8 @@ import qualified Data.Text                as T
 
 import           Pinch
 import           Pinch.Arbitrary          ()
-import           Pinch.Client
+import           Pinch.Client             hiding (client)
+import qualified Pinch.Client             (client)
 import           Pinch.Server
 import           Pinch.Transport
 
@@ -34,9 +35,9 @@ echoServer = createServer $ \_ -> Just $ CallHandler $ \_ (r :: Value TStruct) -
   pure r
 
 data CalcRequest = CalcRequest
-  { inp1 :: Field 1 Int32
-  , inp2 :: Field 2 Int32
-  , op   :: Field 3 Op
+  { _inp1 :: Field 1 Int32
+  , _inp2 :: Field 2 Int32
+  , _op   :: Field 3 Op
   } deriving (Generic, Show)
 instance Pinchable CalcRequest
 
@@ -67,7 +68,7 @@ onewayServer = do
 
 errorServer :: ThriftServer
 errorServer = createServer $ \nm -> case nm of
-  "app_ex" -> Just $ CallHandler $ \_ (msg :: Value TStruct) ->
+  "app_ex" -> Just $ CallHandler $ \_ (_ :: Value TStruct) ->
     throwIO $ ApplicationException "Test" InternalError :: IO (Value TStruct)
   "hs_ex" -> Just $ CallHandler $ \_ (_ :: Value TStruct) -> error "nononono" :: IO (Value TStruct)
   _ -> Nothing
@@ -131,7 +132,7 @@ spec = do
 
         _ <- call client (TCall "missing" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
           case e of
-            ApplicationException msg ty -> ty == WrongMethodName
+            ApplicationException _ ty -> ty == WrongMethodName
         pure ()
 
   where
@@ -144,7 +145,7 @@ withLoopbackServer srv cont = do
     bracketOnError (open addr) close (\sock ->
       withAsync (loop sock `finally` close sock) $ \_ ->
         runTCPClient "127.0.0.1" "54093" $ \s -> do
-          c <- client <$> createChannel s framedTransport binaryProtocol
+          c <- Pinch.Client.client <$> createChannel s framedTransport binaryProtocol
           cont c
       )
   where

@@ -44,6 +44,7 @@ module Pinch.Internal.Pinchable
 import Data.ByteString (ByteString)
 import Data.Hashable   (Hashable)
 import Data.Int        (Int16, Int32, Int64, Int8)
+import Data.Kind       (Type)
 import Data.List       (foldl')
 import Data.Text       (Text)
 import Data.Typeable   ((:~:) (..))
@@ -80,7 +81,7 @@ genericUnpinch = fmap G.to . gUnpinch
 
 -- | GPinchable is used to impelment support for automatically deriving
 -- instances of Pinchable via generics.
-class IsTType (GTag f) => GPinchable (f :: * -> *) where
+class IsTType (GTag f) => GPinchable (f :: Type -> Type) where
     -- | 'TType' tag to use for objects of this type.
     type GTag f
 
