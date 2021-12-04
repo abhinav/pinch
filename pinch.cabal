@@ -82,7 +82,7 @@ library
     , ghc-prim
     , hashable >=1.2 && <1.4
     , network ==3.1.*
-    , semigroups >=0.18 && <0.20
+    , semigroups >=0.18 && <0.21
     , text ==1.2.*
     , unordered-containers ==0.2.*
     , vector >=0.10 && <0.13
@@ -123,7 +123,7 @@ test-suite pinch-spec
     , network ==3.1.*
     , network-run >=0.2.4 && <0.3
     , pinch
-    , semigroups >=0.18 && <0.20
+    , semigroups >=0.18 && <0.21
     , text ==1.2.*
     , unordered-containers ==0.2.*
     , vector >=0.10 && <0.13
