@@ -83,7 +83,7 @@ library
     , hashable >=1.2 && <1.5
     , network >=3.1.2.0 && <3.2
     , semigroups >=0.18 && <0.21
-    , text ==1.2.*
+    , text ==1.2.* || >= 2.0
     , unordered-containers ==0.2.*
     , vector >=0.10 && <0.13
   default-language: Haskell2010
@@ -124,7 +124,7 @@ test-suite pinch-spec
     , network-run >=0.2.4 && <0.3
     , pinch
     , semigroups >=0.18 && <0.21
-    , text ==1.2.*
+    , text ==1.2.* || >= 2.0
     , unordered-containers ==0.2.*
     , vector >=0.10 && <0.13
   default-language: Haskell2010

@@ -23,7 +23,11 @@ import GHC.Base (
     uncheckedShiftLWord16#,
     uncheckedShiftLWord32#,
 #endif
+#if MIN_VERSION_ghc_prim(0,9,0)
+    uncheckedShiftL64#,
+#else
     uncheckedShiftL#,
+#endif
     )
 import GHC.Word (Word16 (..), Word32 (..), Word64 (..))
 #else
@@ -50,7 +54,13 @@ w32ShiftL (W32# w) (I# i) = W32# (w `uncheckedShiftLWord32#` i)
 w16ShiftL (W16# w) (I# i) = W16# (w `uncheckedShiftL#` i)
 w32ShiftL (W32# w) (I# i) = W32# (w `uncheckedShiftL#` i)
 #endif
+
+#if MIN_VERSION_ghc_prim(0,9,0)
+w64ShiftL (W64# w) (I# i) = W64# (w `uncheckedShiftL64#` i)
+#else
 w64ShiftL (W64# w) (I# i) = W64# (w `uncheckedShiftL#` i)
+#endif
+
 #else
 w16ShiftL = shiftL
 w32ShiftL = shiftL
