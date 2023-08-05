@@ -20,17 +20,17 @@ import qualified Pinch.Internal.Builder as B
 
 class Connection c where
   -- | Gets up to n bytes. Returns an empty bytestring if EOF is reached.
-  cGetSome :: c -> Int -> IO BS.ByteString
+  cGetSome :: c -> IO BS.ByteString
   -- | Writes the given bytestring.
   cPut :: c -> BS.ByteString -> IO ()
 
 instance Connection Handle where
   cPut = BS.hPut
-  cGetSome = BS.hGetSome
+  cGetSome h = BS.hGetSome h 1024
 
 instance Connection Socket where
   cPut = sendAll
-  cGetSome s n = recv s (min n 4096)
+  cGetSome s = recv s 4096
 
 data ReadResult a
   = RRSuccess a
@@ -47,28 +47,23 @@ data Transport
 
 -- | Creates a thrift framed transport. See also <https://github.com/apache/thrift/blob/master/doc/specs/thrift-rpc.md#framed-vs-unframed-transport>.
 framedTransport :: Connection c => c -> IO Transport
-framedTransport c = pure $ Transport writeMsg readMsg where
+framedTransport c = do
+  readBuffer <- newIORef mempty
+  pure $ Transport writeMsg (readMsg readBuffer) where
   writeMsg msg = do
     cPut c $ B.runBuilder $ B.int32BE (fromIntegral $ B.getSize msg)
     cPut c $ B.runBuilder msg
 
-  readMsg p = do
-    szBs <- getExactly c 4
-    if BS.length szBs < 4
-      then
-        pure $ RREOF
-      else do
-        let sz = fromIntegral <$> G.runGet G.getInt32be szBs
-        case sz of
-          Right x -> do
-            msgBs <- getExactly c x
-            pure $ if BS.length msgBs < x
-              then
-                -- less data has been returned than expected. This means we have reached EOF.
-                RREOF
-              else
-                either RRFailure RRSuccess $ G.runGet p msgBs
-          Left s -> pure $ RRFailure $ "Invalid frame size: " ++ show s
+  readMsg readBuffer parser = do
+    let 
+      frameParser = do 
+        size <- G.getInt32be
+        G.isolate (fromIntegral size) parser
+    
+    initial <- readIORef readBuffer
+    (leftovers, r) <- runGetWith (cGetSome c) frameParser initial
+    writeIORef readBuffer $! leftovers
+    pure r
 
 -- | Creates a thrift unframed transport. See also <https://github.com/apache/thrift/blob/master/doc/specs/thrift-rpc.md#framed-vs-unframed-transport>.
 unframedTransport :: Connection c => c -> IO Transport
@@ -88,7 +83,7 @@ unframedTransport c = do
       (leftOvers, r) <- runGetWith getSome p bs'
       writeIORef buf leftOvers
       pure $ r
-    getSome = cGetSome c 1024
+    getSome = cGetSome c
 
 -- | Runs a Get parser incrementally, reading more input as necessary until a successful parse
 -- has been achieved.
@@ -108,17 +103,3 @@ runGetWith getBs p initial = go (G.runGetPartial p initial)
             pure (bs, RREOF)
           else
             go $ cont bs
-  
--- | Gets exactly n bytes. If EOF is reached, an empty string is returned.
-getExactly :: Connection c => c -> Int -> IO BS.ByteString
-getExactly c sz = B.runBuilder <$> go sz mempty
-  where
-    go :: Int -> B.Builder -> IO B.Builder
-    go n b = do
-      bs <- cGetSome c n
-      let b' = b <> B.byteString bs
-      case BS.length bs of
-        -- EOF, return what data we might have gotten so far
-        0 -> pure mempty
-        n' | n' < n -> go (n - n') b'
-        _  | otherwise -> pure b'
