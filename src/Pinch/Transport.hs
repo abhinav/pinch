@@ -78,12 +78,10 @@ unframedTransport c = do
     writeMsg msg = cPut c $ B.runBuilder msg
 
     readMsg buf p = do
-      bs <- readIORef buf
-      bs' <- if BS.null bs then getSome else pure bs
-      (leftOvers, r) <- runGetWith getSome p bs'
-      writeIORef buf leftOvers
-      pure $ r
-    getSome = cGetSome c
+      initial <- readIORef buf
+      (leftovers, r) <- runGetWith (cGetSome c) p initial
+      writeIORef buf $! leftovers
+      pure r
 
 -- | Runs a Get parser incrementally, reading more input as necessary until a successful parse
 -- has been achieved.
