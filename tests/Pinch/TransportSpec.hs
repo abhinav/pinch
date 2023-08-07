@@ -29,9 +29,9 @@ mGetContents :: MemoryConnection -> IO ByteString
 mGetContents = readIORef . contents
 
 instance Connection MemoryConnection where
-  cGetSome (MemoryConnection ref ch) n = do
+  cGetSome (MemoryConnection ref ch) = do
     bytes <- readIORef ref
-    let (left, right) = BS.splitAt (min ch n) bytes
+    let (left, right) = BS.splitAt ch bytes
     writeIORef ref right
     return left
   cPut (MemoryConnection ref _) newBytes = do
