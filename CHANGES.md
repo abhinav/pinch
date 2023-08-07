@@ -1,3 +1,18 @@
+0.5.0.0 (2023-08-07)
+=====================
+
+- (**Breaking**) Transport:
+  `cGetSome` no longer takes an int parameter.
+  Implementations should return all available bytes (blocking if necessary)
+  or an empty string for EOF. (#54)
+- (**Breaking**) Transport:
+  `cPut` accepts a `Builder `instead of a `ByteString`.
+  Implementations should use `runBuilder` to turn it into a `ByteString`
+  if needed. (#55)
+- Add a `Pinch.Transport.Builder` module exporting the `Builder` type;
+  a length-aware `ByteString` builder. (#55)
+
+
 0.4.3.0 (2023-04-27)
 =====================
 
