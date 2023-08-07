@@ -34,8 +34,8 @@ instance Connection MemoryConnection where
     let (left, right) = BS.splitAt ch bytes
     writeIORef ref right
     return left
-  cPut (MemoryConnection ref _) newBytes = do
-    modifyIORef ref (<> newBytes)
+  cPut (MemoryConnection ref _) builder = do
+    modifyIORef ref (<> B.runBuilder builder)
 
 transportSpec :: (forall c . Connection c => c -> IO Transport) -> Spec
 transportSpec t = do
@@ -63,8 +63,8 @@ spec = do
       let payload = BS.pack [0x01, 0x05, 0x01, 0x08, 0xFF]
       buf <- newMemoryConnection 1
       transp <- framedTransport buf
-      cPut buf $ BS.pack [0x00, 0x00, 0x00, 0x05]
-      cPut buf payload
+      cPut buf $ B.byteString (BS.pack [0x00, 0x00, 0x00, 0x05])
+      cPut buf $ B.byteString payload
       r <- readMessage transp (G.getBytes $ BS.length payload)
       r `shouldBe` RRSuccess payload
 
@@ -84,7 +84,7 @@ spec = do
       ioProperty $ do
         buf <- newMemoryConnection 1
         transp <- unframedTransport buf
-        cPut buf payload
+        cPut buf $ B.byteString payload
         r <- readMessage transp (G.getBytes $ BS.length payload)
         pure $ r === RRSuccess payload
 

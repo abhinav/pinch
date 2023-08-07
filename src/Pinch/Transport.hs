@@ -21,15 +21,15 @@ import qualified Pinch.Internal.Builder as B
 class Connection c where
   -- | Returns available bytes, or an empty bytestring if EOF was reached.
   cGetSome :: c -> IO BS.ByteString
-  -- | Writes the given bytestring.
-  cPut :: c -> BS.ByteString -> IO ()
+  -- | Writes the given builder.
+  cPut :: c -> B.Builder -> IO ()
 
 instance Connection Handle where
-  cPut = BS.hPut
+  cPut c b = BS.hPut c (B.runBuilder b)
   cGetSome h = BS.hGetSome h 1024
 
 instance Connection Socket where
-  cPut = sendAll
+  cPut c b = sendAll c (B.runBuilder b)
   cGetSome s = recv s 4096
 
 data ReadResult a
@@ -51,9 +51,7 @@ framedTransport c = do
   readBuffer <- newIORef mempty
   pure $ Transport writeMsg (readMsg readBuffer) where
   writeMsg msg = do
-    cPut c $ B.runBuilder $ B.int32BE (fromIntegral $ B.getSize msg)
-    cPut c $ B.runBuilder msg
-
+    cPut c $ B.int32BE (fromIntegral $ B.getSize msg) <> msg
   readMsg readBuffer parser = do
     let 
       frameParser = do 
@@ -75,7 +73,7 @@ unframedTransport c = do
   readBuffer <- newIORef mempty
   pure $ Transport writeMsg (readMsg readBuffer)
   where
-    writeMsg msg = cPut c $ B.runBuilder msg
+    writeMsg = cPut c
 
     readMsg buf p = do
       initial <- readIORef buf
