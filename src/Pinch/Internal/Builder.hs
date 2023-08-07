@@ -13,6 +13,7 @@
 module Pinch.Internal.Builder
     ( Builder
     , runBuilder
+    , unsafeRunBuilder
 
     , append
     , int8
@@ -47,6 +48,12 @@ data Builder = B {-# UNPACK #-} !Int (Ptr Word8 -> IO ())
 runBuilder :: Builder -> ByteString
 runBuilder (B size fill) = BI.unsafeCreate size fill
 {-# INLINE runBuilder #-}
+
+-- | Fill a buffer with the bytes of a builder. The buffer is assumed
+-- to be big enough to hold the contents of the entire builder.
+unsafeRunBuilder :: Builder -> Ptr Word8 -> IO ()
+unsafeRunBuilder (B _size fill) = fill
+{-# INLINE unsafeRunBuilder #-}
 
 -- | Append two Builders into one.
 append :: Builder -> Builder -> Builder

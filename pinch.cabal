@@ -63,6 +63,7 @@ library
       Pinch.Protocol.Compact
       Pinch.Server
       Pinch.Transport
+      Pinch.Transport.Builder
   other-modules:
       Pinch.Internal.Bits
       Pinch.Internal.Pinchable.Parser
