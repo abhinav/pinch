@@ -19,7 +19,7 @@ import qualified Data.Serialize.Get as G
 import qualified Pinch.Internal.Builder as B
 
 class Connection c where
-  -- | Gets up to n bytes. Returns an empty bytestring if EOF is reached.
+  -- | Returns available bytes, or an empty bytestring if EOF was reached.
   cGetSome :: c -> IO BS.ByteString
   -- | Writes the given bytestring.
   cPut :: c -> BS.ByteString -> IO ()
