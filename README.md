@@ -46,7 +46,7 @@ instance Pinchable Person where
                <*> value .:? 2
 ```
 
-Better yet, you can drive an instance automatically.
+Better yet, you can derive an instance automatically.
 
 ```haskell
 {-# LANGUAGE DeriveGeneric, DataKinds #-}
