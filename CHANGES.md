@@ -1,3 +1,10 @@
+0.5.1.0 (2024-01-08)
+====================
+
+- Allow bytestring 0.12.
+- Allow deepseq 1.6.
+- Build on GHC 9.8 without warning.
+
 0.5.0.0 (2023-08-07)
 =====================
 
