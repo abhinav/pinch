@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -160,8 +161,12 @@ withLoopbackServer srv cont = do
         >>= runConnection mempty srv
 
     resolve :: SocketType -> Maybe HostName -> S.ServiceName -> Bool -> IO AddrInfo
-    resolve socketType mhost port passive =
-        head <$> getAddrInfo (Just hints) mhost (Just port)
+    resolve socketType mhost port passive = 
+        getAddrInfo (Just hints) mhost (Just port) >>= \case
+          -- Data.List.head emits a warning in GHC 9.8+. Therefore, we're being more explicit
+          -- about possible error cases.
+          [addr] -> pure addr
+          _      -> error "No addresses"
       where
         hints = defaultHints
           { addrSocketType = socketType
