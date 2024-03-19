@@ -163,17 +163,22 @@ instance Arbitrary TM.MessageType where
         ]
     shrink _ = []
 
+arbitraryIdent :: Gen Text
+arbitraryIdent = do
+    c <- elements $ '_' : ['A' .. 'Z'] <> ['a' .. 'z']
+    cs <- listOf $ elements $ ['_', '.'] <> ['A' .. 'Z'] <> ['a' .. 'z']
+    pure $ Tx.pack $ c : cs
 
 instance Arbitrary TM.Message where
     arbitrary =
         TM.Message
-            <$> (getSomeText <$> arbitrary)
+            <$> arbitraryIdent
             <*> arbitrary
             <*> arbitrary
             <*> arbitrary
 
     shrink (TM.Message name  typ  mid  body) =
-        [   TM.Message name' typ' mid' body'
+        [   TM.Message (Tx.head name `Tx.cons` name') typ' mid' body'
         | (SomeText name', typ', mid', body') <-
-            shrink ((SomeText name), typ, mid, body)
+            shrink (SomeText $ Tx.tail name, typ, mid, body)
         ]
