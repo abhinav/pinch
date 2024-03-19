@@ -1,13 +1,12 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DerivingVia         #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE KindSignatures             #-}
 
 module Pinch.ClientServerSpec (spec) where
 
@@ -81,15 +80,17 @@ errorServer = createServer $ \nm -> case nm of
   _ -> Nothing
 
 newtype MaskShow (sym :: Symbol) a = MaskShow a
-  deriving Arbitrary via a
+  deriving Arbitrary
 
 instance KnownSymbol sym => Show (MaskShow sym a) where
   show = const (symbolVal (Proxy :: Proxy sym))
 
+type MaskShowProtocol = MaskShow "protocol" Protocol
+
 spec :: Spec
 spec = do
   describe "Client/Server" $ do
-    prop "echo test" $ withMaxSuccess 20 $ \(MaskShow @"protocol" protocol, request :: Value TStruct) -> ioProperty $ do
+    prop "echo test" $ withMaxSuccess 20 $ \(MaskShow protocol :: MaskShowProtocol, request :: Value TStruct) -> ioProperty $ do
       withLoopbackServer protocol echoServer $ \client -> do
         reply <- call client $ TCall "" request
         pure $

@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Pinch.Protocol.Common
   ( parseUtf8Incremental
   , parseIDLMethodName
@@ -12,6 +14,9 @@ import qualified Data.ByteString          as B
 import qualified Data.Char                as C
 import qualified Data.Serialize.Get       as G
 import qualified Data.Text.Encoding       as TE
+
+#if MIN_VERSION_text(2,0,2)
+
 import qualified Data.Text.Encoding.Error as TE
 
 data Utf8Result
@@ -55,11 +60,34 @@ parseUtf8Incremental maxChunkSize nameLength = do
     go acc _ n (Utf8Success part) = let chunkSize = min n maxChunkSize in do
       chunk <- G.getBytes chunkSize
       go (acc <> part) chunk (n - chunkSize) $ parseUtf8Incremental' chunk
-    go _ chunk 0 (Utf8Partial _) = fail $ "Method name has unfinished UTF8 sequence: " ++ show (B.takeEnd 4 chunk)
+    go _ chunk 0 (Utf8Partial _) = fail $ "Method name has unfinished UTF8 sequence: " ++ show (bsTakeEnd 4 chunk)
     go acc _ n (Utf8Partial cont) = let chunkSize = min n maxChunkSize in do
       chunk <- G.getBytes chunkSize
       go acc chunk (n - chunkSize) $ cont chunk
 
+#else
+
+-- Fall back to non-incremental parsing, if we have to
+parseUtf8Incremental :: Int -> Int -> G.Get Text
+parseUtf8Incremental _ n = do
+  bs <- G.getBytes n
+  case TE.decodeUtf8' bs of
+    Left err -> fail $ "Couldn't parse thrift function name: " ++ show err
+    Right a -> pure a
+
+#endif
+
+#if MIN_VERSION_bytestring(0,11,1)
+
+bsTakeEnd :: Int -> ByteString -> ByteString
+bsTakeEnd = B.takeEnd
+
+#else
+
+bsTakeEnd :: Int -> ByteString -> ByteString
+bsTakeEnd n bs = B.drop (B.length bs - n) bs
+
+#endif
 
 validIdentStart :: Char -> Bool
 validIdentStart '_' = True
