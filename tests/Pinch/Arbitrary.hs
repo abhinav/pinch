@@ -16,6 +16,7 @@ import Control.Applicative
 
 import Data.ByteString (ByteString)
 import Data.Text       (Text)
+import Data.Word       (Word32)
 import Test.QuickCheck
 
 import qualified Data.ByteString     as B
@@ -27,6 +28,10 @@ import qualified Pinch.Internal.FoldList as FL
 import qualified Pinch.Internal.Message  as TM
 import qualified Pinch.Internal.TType    as T
 import qualified Pinch.Internal.Value    as V
+import qualified Pinch.Protocol          as P
+import qualified Pinch.Protocol.Binary as BP
+import qualified Pinch.Protocol.Compact as CP
+import qualified Pinch.Protocol.Options  as PO
 
 #if !MIN_VERSION_QuickCheck(2, 8, 0)
 scale :: (Int -> Int) -> Gen a -> Gen a
@@ -39,6 +44,13 @@ halfSize = scale (\n -> truncate (fromIntegral n / 2 :: Double))
 newtype SomeByteString = SomeByteString
     { getSomeByteString :: ByteString }
   deriving (Show, Eq)
+
+instance Arbitrary P.Protocol where
+    arbitrary = do
+        p <- elements [BP.binaryProtocol', CP.compactProtocol']
+        incrementalChunkSize <- arbitrary :: Gen Word32
+        pure $ p $ PO.defaultProtocolOptions
+            { PO.poIncrementalChunkSize = succ $ fromIntegral incrementalChunkSize }
 
 instance Arbitrary SomeByteString where
     arbitrary = SomeByteString . B.pack <$> arbitrary
