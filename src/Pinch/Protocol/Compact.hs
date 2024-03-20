@@ -155,7 +155,7 @@ parseInt64 = VInt64 . fromIntegral . zigZagToInt <$> parseVarint
 parseBinary :: ProtocolOptions -> G.Get (Value TBinary)
 parseBinary opts = do
     n <- fromIntegral <$> parseVarint
-    guardPositiveSize "Binary length" n
+    guardNonNegativeSize "Binary length" n
     guardMaxBinaryLength opts n
     VBinary <$> G.getBytes n
 
@@ -163,7 +163,7 @@ parseBinary opts = do
 parseMap :: ProtocolOptions -> G.Get (Value TMap)
 parseMap opts = do
     count <- fromIntegral <$> parseVarint
-    guardPositiveSize "Map size" count
+    guardNonNegativeSize "Map size" count
     guardMaxMapSize opts count
     case count of
       0 -> return VNullMap
@@ -187,22 +187,22 @@ parseCollection
     -> (Int -> G.Get ())
     -> ProtocolOptions
     -> G.Get (Value b)
-parseCollection buildValue guardMaxSize guardPositiveSize opts = do
+parseCollection buildValue guardMaxSize guardNonNegativeSize opts = do
     sizeAndType <- G.getWord8
     SomeCType ctype <- getCType (sizeAndType .&. 0x0f)
     count <- fromIntegral <$> case sizeAndType `shiftR` 4 of
                  0xf -> parseVarint
                  n   -> return $ fromIntegral n
-    guardPositiveSize count
+    guardNonNegativeSize count
     guardMaxSize opts count
     let vtype  = cTypeToTType ctype
     buildValue <$> FL.replicateM count (compactDeserialize opts vtype)
 
 parseSet :: ProtocolOptions -> G.Get (Value TSet)
-parseSet = parseCollection VSet guardMaxSetSize (guardPositiveSize "Set size")
+parseSet = parseCollection VSet guardMaxSetSize (guardNonNegativeSize "Set size")
 
 parseList :: ProtocolOptions -> G.Get (Value TList)
-parseList = parseCollection VList guardMaxListLength (guardPositiveSize "List length")
+parseList = parseCollection VList guardMaxListLength (guardNonNegativeSize "List length")
 
 parseStruct :: ProtocolOptions -> G.Get (Value TStruct)
 parseStruct opts = loop M.empty 0

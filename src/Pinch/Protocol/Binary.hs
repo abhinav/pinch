@@ -156,7 +156,7 @@ parseInt64 = VInt64 <$> G.getInt64be
 parseBinary :: ProtocolOptions -> G.Get (Value TBinary)
 parseBinary opts = do
   byteAmt <- fromIntegral <$> G.getInt32be 
-  guardPositiveSize "Binary length" byteAmt
+  guardNonNegativeSize "Binary length" byteAmt
   guardMaxBinaryLength opts byteAmt
   VBinary <$> G.getBytes byteAmt
 
@@ -166,7 +166,7 @@ parseMap opts = do
     ktype' <- parseTType
     vtype' <- parseTType
     count <- fromIntegral <$> G.getInt32be
-    guardPositiveSize "Map size" count
+    guardNonNegativeSize "Map size" count
     guardMaxMapSize opts count
 
     case (ktype', vtype') of
@@ -181,7 +181,7 @@ parseSet :: ProtocolOptions -> G.Get (Value TSet)
 parseSet opts = do
     vtype' <- parseTType
     count <- fromIntegral <$> G.getInt32be
-    guardPositiveSize "Set size" count
+    guardNonNegativeSize "Set size" count
     guardMaxSetSize opts count
 
     case vtype' of
@@ -193,7 +193,7 @@ parseList :: ProtocolOptions -> G.Get (Value TList)
 parseList opts = do
     vtype' <- parseTType
     count <- fromIntegral <$> G.getInt32be
-    guardPositiveSize "List length" count
+    guardNonNegativeSize "List length" count
     guardMaxListLength opts count
 
     case vtype' of

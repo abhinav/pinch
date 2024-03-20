@@ -4,7 +4,7 @@ module Pinch.Protocol.Internal
   , guardMaxListLength
   , guardMaxSetSize
   , guardMaxMapSize
-  , guardPositiveSize
+  , guardNonNegativeSize
   ) where
 
 import Pinch.Protocol.Options (ProtocolOptions(..))
@@ -31,7 +31,7 @@ guardMaxSetSize = guardLimit poMaxSetSize "Set size"
 guardMaxMapSize :: ProtocolOptions -> Int -> G.Get ()
 guardMaxMapSize = guardLimit poMaxMapSize "Map size"
 
-guardPositiveSize :: String -> Int -> G.Get ()
-guardPositiveSize formName n
+guardNonNegativeSize :: String -> Int -> G.Get ()
+guardNonNegativeSize formName n
   | n < 0 = fail $ "Negative " ++ formName ++ ": " ++ show n
   | otherwise = pure ()
