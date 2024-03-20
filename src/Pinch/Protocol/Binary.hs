@@ -10,7 +10,10 @@
 -- Stability   :  experimental
 --
 -- Implements the Thrift Binary Protocol as a 'Protocol'.
-module Pinch.Protocol.Binary (binaryProtocol) where
+module Pinch.Protocol.Binary
+  ( binaryProtocol
+  , binaryProtocol'
+  ) where
 
 
 import Control.Monad
@@ -18,6 +21,7 @@ import Data.Bits           (shiftR, (.&.))
 import Data.ByteString     (ByteString)
 import Data.HashMap.Strict (HashMap)
 import Data.Int            (Int16, Int32, Int8)
+import Data.Text           (Text)
 
 import qualified Data.ByteString        as B
 import qualified Data.HashMap.Strict    as M
@@ -30,19 +34,26 @@ import Pinch.Internal.Message
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol         (Protocol (..))
+import Pinch.Protocol.Internal
+import Pinch.Protocol.Options (ProtocolOptions(..), defaultProtocolOptions)
 
 import qualified Pinch.Internal.Builder  as BB
 import qualified Pinch.Internal.FoldList as FL
 
 
 -- | Provides an implementation of the Thrift Binary Protocol.
+-- This accepts messages specified by https://erikvanoosten.github.io/thrift-missing-specification/
 binaryProtocol :: Protocol
-binaryProtocol = Protocol
-    { serializeValue     = binarySerialize
-    , deserializeValue'  = binaryDeserialize ttype
-    , serializeMessage   = binarySerializeMessage
-    , deserializeMessage' = binaryDeserializeMessage
-    }
+binaryProtocol = binaryProtocol' defaultProtocolOptions
+
+binaryProtocol' :: ProtocolOptions -> Protocol
+binaryProtocol' options
+  = Protocol
+  { serializeValue      = binarySerialize
+  , deserializeValue'   = binaryDeserialize options ttype
+  , serializeMessage    = binarySerializeMessage
+  , deserializeMessage' = binaryDeserializeMessage options
+  }
 
 ------------------------------------------------------------------------------
 
@@ -56,8 +67,8 @@ binarySerializeMessage msg =
     BB.int32BE (messageId msg) <>
     binarySerialize (messagePayload msg)
 
-binaryDeserializeMessage :: G.Get Message
-binaryDeserializeMessage = do
+binaryDeserializeMessage :: ProtocolOptions -> G.Get Message
+binaryDeserializeMessage opts = do
     size <- G.getInt32be
     if size < 0
         then parseStrict size
@@ -68,27 +79,33 @@ binaryDeserializeMessage = do
     parseStrict versionAndType = do
         unless (version == 1) $
             fail $ "Unsupported version: " ++ show version
+        nameLength <- fromIntegral <$> G.getInt32be :: G.Get Int
+        guardMaxMethodNameLength opts nameLength
         Message
-            <$> TE.decodeUtf8 <$> (G.getInt32be >>= G.getBytes . fromIntegral)
-            <*> typ
+            <$> parseName nameLength
+            <*> parseType
             <*> G.getInt32be
-            <*> binaryDeserialize ttype
+            <*> binaryDeserialize opts ttype
       where
         version = (0x7fff0000 .&. versionAndType) `shiftR` 16
 
         code = fromIntegral $ 0x00ff .&. versionAndType
-        typ = case fromMessageCode code of
+        parseType = case fromMessageCode code of
             Nothing -> fail $ "Unknown message type: " ++ show code
             Just t -> return t
 
     -- name~4 type:1 seqid:4 payload
-    parseNonStrict nameLength =
+    parseNonStrict nameLength' = do
+        let nameLength = fromIntegral nameLength'
+        guardMaxMethodNameLength opts nameLength
         Message
-            <$> TE.decodeUtf8 <$> G.getBytes (fromIntegral nameLength)
+            <$> parseName nameLength
             <*> parseMessageType
             <*> G.getInt32be
-            <*> binaryDeserialize ttype
+            <*> binaryDeserialize opts ttype
 
+    parseName :: Int -> G.Get Text
+    parseName = poMethodNameParser opts $ poMaxMethodNameLength opts
 
 parseMessageType :: G.Get MessageType
 parseMessageType = G.getInt8 >>= \code -> case fromMessageCode code of
@@ -97,19 +114,19 @@ parseMessageType = G.getInt8 >>= \code -> case fromMessageCode code of
 
 ------------------------------------------------------------------------------
 
-binaryDeserialize :: TType a -> G.Get (Value a)
-binaryDeserialize typ = case typ of
+binaryDeserialize :: ProtocolOptions -> TType a -> G.Get (Value a)
+binaryDeserialize opts typ = case typ of
   TBool   -> parseBool
   TByte   -> parseByte
   TDouble -> parseDouble
   TInt16  -> parseInt16
   TInt32  -> parseInt32
   TInt64  -> parseInt64
-  TBinary -> parseBinary
-  TStruct -> parseStruct
-  TMap    -> parseMap
-  TSet    -> parseSet
-  TList   -> parseList
+  TBinary -> parseBinary opts
+  TStruct -> parseStruct opts
+  TMap    -> parseMap opts
+  TSet    -> parseSet opts
+  TList   -> parseList opts
 
 getTType :: Int8 -> G.Get SomeTType
 getTType code =
@@ -136,46 +153,56 @@ parseInt32 = VInt32 <$> G.getInt32be
 parseInt64 :: G.Get (Value TInt64)
 parseInt64 = VInt64 <$> G.getInt64be
 
-parseBinary :: G.Get (Value TBinary)
-parseBinary = VBinary <$> (G.getInt32be >>= G.getBytes . fromIntegral)
+parseBinary :: ProtocolOptions -> G.Get (Value TBinary)
+parseBinary opts = do
+  byteAmt <- fromIntegral <$> G.getInt32be 
+  guardNonNegativeSize "Binary length" byteAmt
+  guardMaxBinaryLength opts byteAmt
+  VBinary <$> G.getBytes byteAmt
 
 
-parseMap :: G.Get (Value TMap)
-parseMap = do
+parseMap :: ProtocolOptions -> G.Get (Value TMap)
+parseMap opts = do
     ktype' <- parseTType
     vtype' <- parseTType
-    count <- G.getInt32be
+    count <- fromIntegral <$> G.getInt32be
+    guardNonNegativeSize "Map size" count
+    guardMaxMapSize opts count
 
     case (ktype', vtype') of
       (SomeTType ktype, SomeTType vtype) -> do
-        items <- FL.replicateM (fromIntegral count) $
-            MapItem <$> binaryDeserialize ktype
-                    <*> binaryDeserialize vtype
+        items <- FL.replicateM count $
+            MapItem <$> binaryDeserialize opts ktype
+                    <*> binaryDeserialize opts vtype
         return $ VMap items
 
 
-parseSet :: G.Get (Value TSet)
-parseSet = do
+parseSet :: ProtocolOptions -> G.Get (Value TSet)
+parseSet opts = do
     vtype' <- parseTType
-    count <- G.getInt32be
+    count <- fromIntegral <$> G.getInt32be
+    guardNonNegativeSize "Set size" count
+    guardMaxSetSize opts count
 
     case vtype' of
       SomeTType vtype ->
-          VSet <$> FL.replicateM (fromIntegral count) (binaryDeserialize vtype)
+          VSet <$> FL.replicateM count (binaryDeserialize opts vtype)
 
 
-parseList :: G.Get (Value TList)
-parseList = do
+parseList :: ProtocolOptions -> G.Get (Value TList)
+parseList opts = do
     vtype' <- parseTType
-    count <- G.getInt32be
+    count <- fromIntegral <$> G.getInt32be
+    guardNonNegativeSize "List length" count
+    guardMaxListLength opts count
 
     case vtype' of
       SomeTType vtype ->
-        VList <$> FL.replicateM (fromIntegral count) (binaryDeserialize vtype)
+        VList <$> FL.replicateM count (binaryDeserialize opts vtype)
 
 
-parseStruct :: G.Get (Value TStruct)
-parseStruct = G.getInt8 >>= loop M.empty
+parseStruct :: ProtocolOptions -> G.Get (Value TStruct)
+parseStruct opts = G.getInt8 >>= loop M.empty
   where
     loop :: HashMap Int16 SomeValue -> Int8 -> G.Get (Value TStruct)
     loop fields    0 = return $ VStruct fields
@@ -184,7 +211,7 @@ parseStruct = G.getInt8 >>= loop M.empty
         fieldId <- G.getInt16be
         case vtype' of
           SomeTType vtype -> do
-            value <- SomeValue <$> binaryDeserialize vtype
+            value <- SomeValue <$> binaryDeserialize opts vtype
             loop (M.insert fieldId value fields) =<< G.getInt8
 
 
