@@ -1,11 +1,11 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           pinch
-version:        0.5.1.0
+version:        0.5.2.0
 synopsis:       An alternative implementation of Thrift for Haskell.
 description:    This library provides machinery for types to specify how they can be
                 serialized and deserialized into/from Thrift payloads. It makes no
