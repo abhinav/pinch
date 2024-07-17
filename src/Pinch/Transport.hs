@@ -56,7 +56,7 @@ framedTransport c = do
     let 
       frameParser = do 
         size <- G.getInt32be
-        G.isolate (fromIntegral size) parser
+        G.isolateLazy (fromIntegral size) parser
     
     initial <- readIORef readBuffer
     (leftovers, r) <- runGetWith (cGetSome c) frameParser initial
