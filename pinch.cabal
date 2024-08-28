@@ -59,6 +59,8 @@ library
       Pinch.Internal.TType
       Pinch.Internal.Value
       Pinch.Protocol
+      Pinch.Protocol.Common
+      Pinch.Protocol.Options
       Pinch.Protocol.Binary
       Pinch.Protocol.Compact
       Pinch.Server
@@ -67,6 +69,8 @@ library
   other-modules:
       Pinch.Internal.Bits
       Pinch.Internal.Pinchable.Parser
+      Pinch.Protocol.Options.Type
+      Pinch.Protocol.Internal
       Paths_pinch
   hs-source-dirs:
       src
@@ -78,15 +82,17 @@ library
     , base >=4.7 && <5
     , bytestring >=0.10 && <0.13
     , cereal >=0.5.8.1 && <0.6
-    , containers >=0.5 && <0.8
+    , containers >=0.5 && <0.7
     , deepseq >=1.3 && <1.6
     , ghc-prim
     , hashable >=1.2 && <1.6
     , network >=3.1.2.0 && <3.3
     , semigroups >=0.18 && <0.21
     , text >=1.2 && <1.3 || >=2.0
+    , transformers >= 0.5 && < 0.7
     , unordered-containers ==0.2.*
     , vector >=0.10 && <0.14
+    , zlib >= 0.6 && < 0.8
   default-language: Haskell2010
 
 test-suite pinch-spec
@@ -124,8 +130,8 @@ test-suite pinch-spec
     , network >=3.1.2.0 && <3.3
     , network-run >=0.2.4 && <0.4
     , pinch
-    , semigroups >=0.18 && <0.21
-    , text >=1.2 && <1.3 || >=2.0
-    , unordered-containers ==0.2.*
-    , vector >=0.10 && <0.14
+    , semigroups
+    , text
+    , unordered-containers
+    , vector
   default-language: Haskell2010
