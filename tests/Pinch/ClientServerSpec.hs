@@ -35,10 +35,11 @@ import           Pinch.Server
 import           Pinch.Transport
 import           GHC.TypeLits (Symbol, KnownSymbol, symbolVal)
 import           Data.Proxy (Proxy(..))
+import Data.Functor
 
 echoServer :: ThriftServer
 echoServer = createServer $ \_ -> Just $ CallHandler $ \_ (r :: Value TStruct) -> do
-  pure r
+  pure (r, emptyHeaderData)
 
 data CalcRequest = CalcRequest
   { _inp1 :: Field 1 Int32
@@ -64,19 +65,19 @@ calcServer = createServer $ \_ -> Just $ CallHandler $ \_ (CalcRequest (Field in
         Minus _ -> CalcResult (Field $ Just $ inp1 - inp2) (Field Nothing)
         Div _ | inp2 == 0 -> CalcResult (Field Nothing) (Field $ Just "div by zero")
         Div _ -> CalcResult (Field $ Just $ inp1 `div` inp2) (Field Nothing)
-  pure ret
+  pure (ret, emptyHeaderData)
 
 onewayServer :: IO (ThriftServer, MVar (Value TStruct))
 onewayServer = do
   ref <- newEmptyMVar
-  let srv = createServer $ \_ -> Just $ OnewayHandler $ \_ (r :: Value TStruct) -> putMVar ref r
+  let srv = createServer $ \_ -> Just $ OnewayHandler $ \_ (r :: Value TStruct) -> putMVar ref r $> emptyHeaderData
   pure (srv, ref)
 
 errorServer :: ThriftServer
 errorServer = createServer $ \nm -> case nm of
   "app_ex" -> Just $ CallHandler $ \_ (_ :: Value TStruct) ->
-    throwIO $ ApplicationException "Test" InternalError :: IO (Value TStruct)
-  "hs_ex" -> Just $ CallHandler $ \_ (_ :: Value TStruct) -> error "nononono" :: IO (Value TStruct)
+    throwIO $ ApplicationException "Test" InternalError :: IO (Value TStruct, HeaderData)
+  "hs_ex" -> Just $ CallHandler $ \_ (_ :: Value TStruct) -> error "nononono" :: IO (Value TStruct, HeaderData)
   _ -> Nothing
 
 newtype MaskShow (sym :: Symbol) a = MaskShow a
@@ -92,7 +93,7 @@ spec = do
   describe "Client/Server" $ do
     prop "echo test" $ withMaxSuccess 20 $ \(MaskShow protocol :: MaskShowProtocol, request :: Value TStruct) -> ioProperty $ do
       withLoopbackServer protocol echoServer $ \client -> do
-        reply <- call client $ TCall "" request
+        reply <- call client $ TCall "" emptyHeaderData request
         pure $
           reply === request
 
@@ -114,11 +115,11 @@ spec = do
       (srv, ref) <- onewayServer
       withLoopbackServer binaryProtocol srv $ \client -> do
         let val = struct [1 .= True, 2 .= ("Hello" :: Text)]
-        _ <- call client $ TOneway "test" val
+        _ <- call client $ TOneway "test" emptyHeaderData val
         r1 <- takeMVar ref
         r1 `shouldBe` val
 
-        _ <- call client (TCall "test" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
+        _ <- call client (TCall "test" emptyHeaderData val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
           case e of
             ApplicationException _ ty -> ty == InvalidMessageType
         pure ()
@@ -130,27 +131,27 @@ spec = do
         r1 `shouldBe` CalcResult (Field $ Just 30) (Field Nothing)
 
         let payload = struct [1 .= True, 2 .= ("Hello" :: Text)]
-        r2 <- call (multiplexClient client "echo") $ TCall "" payload
+        r2 <- call (multiplexClient client "echo") $ TCall "" emptyHeaderData payload
         r2 `shouldBe` payload
 
     it "exceptions" $ do
       withLoopbackServer binaryProtocol errorServer $ \client -> do
         let val = struct [1 .= True, 2 .= ("Hello" :: Text)]
-        _ <- call client (TCall "app_ex" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
+        _ <- call client (TCall "app_ex" emptyHeaderData val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
           case e of
             ApplicationException msg ty -> msg == "Test" && ty == InternalError
 
-        _ <- call client (TCall "hs_ex" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
+        _ <- call client (TCall "hs_ex" emptyHeaderData val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
           case e of
             ApplicationException msg ty -> "nonono" `T.isInfixOf` msg && ty == InternalError
 
-        _ <- call client (TCall "missing" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
+        _ <- call client (TCall "missing" emptyHeaderData val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
           case e of
             ApplicationException _ ty -> ty == WrongMethodName
         pure ()
 
   where
-    mkCall inp1 inp2 op = TCall "calc" $ pinch $ CalcRequest (Field inp1) (Field inp2) (Field $ op $ Enumeration)
+    mkCall inp1 inp2 op = TCall "calc" emptyHeaderData $ pinch $ CalcRequest (Field inp1) (Field inp2) (Field $ op $ Enumeration)
 
 
 withLoopbackServer :: Protocol -> ThriftServer -> (Client -> IO a) -> IO a

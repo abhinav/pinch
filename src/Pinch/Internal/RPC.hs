@@ -1,12 +1,15 @@
 {-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeOperators #-}
 module Pinch.Internal.RPC
   ( Channel(..)
   , createChannel
   , createChannel1
   , readMessage
   , writeMessage
+  , wrap
 
   , ReadResult(..)
 
@@ -52,11 +55,11 @@ createChannel c t p = do
 createChannel1 :: (Transport, Protocol) -> (Transport, Protocol) -> Channel
 createChannel1 (tIn, pIn) (tOut, pOut) = Channel tIn tOut pIn pOut
 
-readMessage :: Channel -> IO (ReadResult Message)
+readMessage :: Channel -> IO (ReadResult (Message, Transport.HeaderData))
 readMessage chan = Transport.readMessage (cTransportIn chan) $ deserializeMessage' (cProtocolIn chan)
 
-writeMessage :: Channel -> Message -> IO ()
-writeMessage chan msg = Transport.writeMessage (cTransportOut chan) $ serializeMessage (cProtocolOut chan) msg
+writeMessage :: Channel -> Transport.HeaderData -> Message -> IO ()
+writeMessage chan headers msg = Transport.writeMessage (cTransportOut chan) headers $ serializeMessage (cProtocolOut chan) msg
 
 
 newtype ServiceName = ServiceName T.Text
@@ -70,15 +73,24 @@ instance IsString ServiceName where
 class (Pinchable a, Tag a ~ TStruct) => ThriftResult a where
   -- | The Haskell type returned when the Thrift call succeeds.
   type ResultType a
+
   -- | Tries to extract the result from a Thrift call. If the call threw any
   -- of the Thrift exceptions declared for this Thrift service method,
   -- the corresponding Haskell excpetions is thrown using `throwIO`.
   unwrap :: a -> IO (ResultType a)
 
-  -- | Runs the given computation. If it throws any of the exceptions
-  -- declared in the Thrift service definition, it is caught and converted
-  -- to the corresponding Haskell result datatype constructor.
-  wrap :: IO (ResultType a) -> IO a
+  -- `wrapThrow` and `wrapPure` are the decomposition of `wrap` into a catch
+  -- phase and a succeed phase.
+  wrapThrown :: IO b -> IO (Either a b)
+  wrapPure :: ResultType a -> a
+
+-- | Runs the given computation. If it throws any of the exceptions
+-- declared in the Thrift service definition, it is caught and converted
+-- to the corresponding Haskell result datatype constructor.
+wrap :: ThriftResult a => IO (ResultType a) -> IO a
+wrap act = flip fmap (wrapThrown act) $ \case
+  Left err -> err
+  Right a -> wrapPure a
 
 -- | Result datatype for void methods not throwing any exceptions.
 data Unit = Unit
@@ -91,5 +103,6 @@ instance Pinchable Unit where
 
 instance ThriftResult Unit where
   type ResultType Unit = ()
-  wrap m = Unit <$ m
+  wrapThrown m = Right <$> m
+  wrapPure () = Unit
   unwrap Unit = pure ()

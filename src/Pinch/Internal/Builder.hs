@@ -18,6 +18,8 @@ module Pinch.Internal.Builder
     , append
     , int8
     , word8
+    , word16BE
+    , word32BE
     , int16BE
     , int32BE
     , int64BE
@@ -33,7 +35,7 @@ import Data.ByteString              (ByteString)
 import Data.ByteString.Builder.Prim ((>*<))
 import Data.Int
 import Data.Semigroup
-import Data.Word                    (Word8)
+import Data.Word                    (Word8, Word32, Word16)
 import Foreign.ForeignPtr           (withForeignPtr)
 import Foreign.Ptr                  (Ptr, plusPtr)
 
@@ -105,6 +107,16 @@ int8 = primFixed BP.int8
 word8 :: Word8 -> Builder
 word8 = primFixed BP.word8
 {-# INLINE word8 #-}
+
+-- | Serialize an unsigned 16-bit integer in big endian format.
+word16BE :: Word16 -> Builder
+word16BE = primFixed BP.word16BE
+{-# INLINE word16BE #-}
+
+-- | Serialize an unsigned 32-bit integer in big endian format.
+word32BE :: Word32 -> Builder
+word32BE = primFixed BP.word32BE
+{-# INLINE word32BE #-}
 
 -- | Serialize a signed 16-bit integer in big endian format.
 int16BE :: Int16 -> Builder

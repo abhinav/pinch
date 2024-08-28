@@ -4,6 +4,7 @@
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Pinch.Client
   (
@@ -16,6 +17,7 @@ module Pinch.Client
 
   , ThriftCall(..)
   , ThriftClient(..)
+  , call
   , callOrThrow
 
     -- * Multiplexing Client
@@ -30,6 +32,7 @@ module Pinch.Client
   ) where
 
 import           Control.Exception        (throwIO)
+import           Pinch.Transport (HeaderData, emptyHeaderData)
 
 import qualified Data.Text                as T
 
@@ -49,30 +52,30 @@ client = Client
 -- | A call to a Thrift server resulting in the return datatype `a`.
 data ThriftCall a where
   TCall :: (Pinchable req, Tag req ~ TStruct, Pinchable res, Tag res ~ TStruct)
-    => !T.Text -> !req -> ThriftCall res
-  TOneway :: (Pinchable req, Tag req ~ TStruct) => !T.Text -> !req -> ThriftCall ()
+    => !T.Text -> HeaderData -> !req -> ThriftCall res
+  TOneway :: (Pinchable req, Tag req ~ TStruct) => !T.Text -> HeaderData -> !req -> ThriftCall ()
 
 class ThriftClient c where
   -- | Calls a Thrift service and returns the result/error data structure.
   -- Application-level exceptions defined in the thrift service are returned
   -- as part of the result/error data structure.
-  call :: c -> ThriftCall a -> IO a
+  callWithHeaders :: c -> ThriftCall a -> IO (a, HeaderData)
 
 instance ThriftClient Client where
-  call (Client chan) tcall = do
+  callWithHeaders (Client chan) tcall = do
     case tcall of
-      TOneway m r -> do
-        writeMessage chan $ Message m Oneway 0 (pinch r)
-        pure ()
-      TCall m r -> do
-        writeMessage chan $ Message m Call 0 (pinch r)
+      TOneway m reqHeaders r -> do
+        writeMessage chan reqHeaders $ Message m Oneway 0 (pinch r)
+        pure ((), emptyHeaderData)
+      TCall m reqHeaders r -> do
+        writeMessage chan reqHeaders $ Message m Call 0 (pinch r)
         reply <- readMessage chan
         case reply of
           RREOF -> throwIO $ ThriftError $ "Reached EOF while awaiting reply"
           RRFailure err -> throwIO $ ThriftError $ "Could not read message: " <> T.pack err
-          RRSuccess reply' -> case messageType reply' of
+          RRSuccess (reply', responseHeaders) -> case messageType reply' of
             Reply -> case runParser $ unpinch $ messagePayload reply' of
-              Right x -> pure x
+              Right x -> pure (x, responseHeaders)
               Left err -> do
                 throwIO $ ThriftError $ "Could not parse reply payload: " <> T.pack err
             Exception -> case runParser $ unpinch $ messagePayload reply' of
@@ -80,6 +83,9 @@ instance ThriftClient Client where
               Left err ->
                 throwIO $ ThriftError $ "Could not parse application exception: " <> T.pack err
             t -> throwIO $ ThriftError $ "Expected reply or exception, got " <> T.pack (show t) <> "."
+
+call :: ThriftClient c => c -> ThriftCall a -> IO a
+call c call' = fst <$> callWithHeaders c call'
 
 -- | Calls a Thrift service. If an application-level thrift exception as defined in the Thrift service definition
 -- is returned by the server, it will be re-thrown using `throwIO`.
@@ -94,6 +100,6 @@ multiplexClient :: ThriftClient c => c -> ServiceName -> MultiplexClient
 multiplexClient = MultiplexClient
 
 instance ThriftClient MultiplexClient where
-  call (MultiplexClient client' (ServiceName serviceName)) tcall = case tcall of
-    TOneway r req -> call client' $ TOneway (serviceName <> ":" <> r) req
-    TCall r req   -> call client' $ TCall (serviceName <> ":" <> r) req
+  callWithHeaders (MultiplexClient client' (ServiceName serviceName)) tcall = case tcall of
+    TOneway r reqHeaders req -> callWithHeaders client' $ TOneway (serviceName <> ":" <> r) reqHeaders req
+    TCall r reqHeaders req   -> callWithHeaders client' $ TCall (serviceName <> ":" <> r) reqHeaders req

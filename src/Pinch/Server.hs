@@ -7,6 +7,11 @@
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Pinch.Server
   (
@@ -51,6 +56,7 @@ import           Control.Exception        (Exception, SomeException, catchJust,
 import           Data.Dynamic             (Dynamic (..), fromDynamic, toDyn)
 import           Data.Proxy               (Proxy (..))
 import           Data.Typeable            (TypeRep, Typeable, typeOf, typeRep)
+import           Pinch.Transport          (HeaderData, emptyHeaderData)
 
 import qualified Data.HashMap.Strict      as HM
 import qualified Data.Text                as T
@@ -62,6 +68,9 @@ import           Pinch.Internal.RPC
 import           Pinch.Internal.TType
 
 import qualified Pinch.Transport          as T
+import qualified Pinch.Transport as Transport
+import Data.Functor (void)
+import Data.Tuple (swap)
 
 -- | A single request to a thrift server.
 data Request out where
@@ -81,7 +90,7 @@ getRequestMessage (RCall m)   = m
 getRequestMessage (ROneway m) = m
 
 -- | A `Thrift` server. Takes the context and the request as input and may produces a reply message.
-newtype ThriftServer = ThriftServer { unThriftServer :: forall a . Context -> Request a -> IO a }
+newtype ThriftServer = ThriftServer { unThriftServer :: forall a . Context -> Request a -> IO (a, HeaderData) }
 
 -- | Allows passing context information to a `ThriftServer`.
 -- The context is indexed by type.
@@ -96,6 +105,8 @@ instance Monoid Context where
 class Typeable a => ContextItem a where
 
 instance ContextItem ServiceName
+
+instance ContextItem HeaderData
 
 
 -- | Adds a new item to the context. If an item with the same
@@ -115,9 +126,9 @@ lookupInContext (Context m) = do
 -- | Create a handler for a request type.
 data Handler where
   -- | Handle normal call requests. Must return a result.
-  CallHandler :: (Pinchable c, Tag c ~ TStruct, Pinchable r, Tag r ~ TStruct) => (Context -> c -> IO r) -> Handler
+  CallHandler :: (Pinchable c, Tag c ~ TStruct, Pinchable r, Tag r ~ TStruct) => (Context -> c -> IO (r, HeaderData)) -> Handler
   -- | Handle oneway requests. Cannot return any result.
-  OnewayHandler :: (Pinchable c, Tag c ~ TStruct) => (Context -> c -> IO ()) -> Handler
+  OnewayHandler :: (Pinchable c, Tag c ~ TStruct) => (Context -> c -> IO HeaderData) -> Handler
 
 -- | Creates a new thrift server processing requests with the function `f`.
 --
@@ -132,13 +143,14 @@ createServer f = ThriftServer $ \ctx req ->
         Just (CallHandler f') ->
           case runParser $ unpinch $ messagePayload msg of
             Right args -> do
-              ret <- f' ctx args
-              pure $ Message
-                  { messageName = messageName msg
-                  , messageType = Reply
-                  , messageId   = messageId msg
-                  , messagePayload = pinch ret
-                  }
+              (ret, headers) <- f' ctx args
+              let message = Message
+                    { messageName = messageName msg
+                    , messageType = Reply
+                    , messageId   = messageId msg
+                    , messagePayload = pinch ret
+                    }
+              pure (message, headers)
             Left err ->
               pure $ mkApplicationExceptionReply msg $
                 ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
@@ -156,7 +168,7 @@ createServer f = ThriftServer $ \ctx req ->
       case f $ messageName msg of
         Just (OnewayHandler f') -> do
           case runParser $ unpinch $ messagePayload msg of
-            Right args -> f' ctx args
+            Right args -> ((),) <$> f' ctx args
             Left err   ->
               throwIO $ ApplicationException ("Unable to parse service arguments: " <> T.pack err) InternalError
         Just (CallHandler _) ->
@@ -177,7 +189,7 @@ multiplex services = ThriftServer $ \ctx req -> do
   where
     srvMap = HM.fromList services
 
-    go :: Context -> Request a -> (ApplicationException -> IO a) -> IO a
+    go :: Context -> Request a -> (ApplicationException -> IO (a, HeaderData)) -> IO (a, HeaderData)
     go ctx req onErr = do
       let (prefix, method) = T.span (/= ':') (messageName $ getRequestMessage req)
       let prefix' = ServiceName prefix
@@ -189,7 +201,7 @@ multiplex services = ThriftServer $ \ctx req -> do
           reply <- unThriftServer srv ctx' $ mapRequestMessage (\msg -> msg { messageName = T.tail method }) req
 
           case req of
-            ROneway _ -> pure ()
+            ROneway _ -> pure ((), emptyHeaderData)
             RCall _   -> pure reply
         Nothing -> onErr $ ApplicationException ("No service with name " <> prefix <> " available.") UnknownMethod
 
@@ -206,10 +218,12 @@ onError sel callError onewayError srv = ThriftServer $
     catchJust sel
       (unThriftServer srv ctx req)
       (\e -> do
-        case req of
+        (,emptyHeaderData) <$> case req of
           RCall _   -> callError e
           ROneway _ -> onewayError e
       )
+
+
 
 -- | Run a Thrift server for a single connection.
 runConnection :: Context -> ThriftServer -> Channel -> IO ()
@@ -219,33 +233,37 @@ runConnection ctx srv chan = do
     T.RREOF -> pure ()
     T.RRFailure err -> do
       throwIO $ ThriftError $ T.pack err
-    T.RRSuccess call -> do
+    T.RRSuccess (call, reqHeaders) -> do
+      let ctx' = addToContext reqHeaders ctx
       case messageType call of
         Call -> do
-          r <- try $ unThriftServer srv ctx (RCall call)
+          r <- try $ unThriftServer srv ctx' (RCall call)
           case r of
             -- if it is already an ApplicationException, we just send it back
             Left (e :: SomeException)
-              | Just appEx <- fromException e -> writeMessage chan $ mkApplicationExceptionReply call appEx
-            Left (e :: SomeException) -> writeMessage chan $ mkApplicationExceptionReply call $
+              | Just appEx <- fromException e -> uncurry (writeMessage chan)
+                  $ swap $ mkApplicationExceptionReply call appEx
+            Left (e :: SomeException) -> uncurry (writeMessage chan) $ swap $ mkApplicationExceptionReply call $
               ApplicationException ("Could not process request: " <> (T.pack $ show e)) InternalError
-            Right x -> writeMessage chan x
+            Right (x, responseHeaders)  -> writeMessage chan responseHeaders x
         Oneway -> do
           -- no matter what happens, we can never send back an error because the client is not listening for replies
           -- when doing a oneway calls...
           -- Let's just crash the connection in this case, to avoid silently swallowing errors.
           -- `onError` can be used to handle this more gracefully.
-          unThriftServer srv ctx (ROneway call)
+          void $ unThriftServer srv ctx' (ROneway call)
         -- the client must never send Reply/Exception messages.
         t -> throwIO $
           ApplicationException ("Expected call, got " <> (T.pack $ show t)) InvalidMessageType
       runConnection ctx srv chan
 
 -- | Builds an exception reply given the corresponding request message.
-mkApplicationExceptionReply :: Message -> ApplicationException -> Message
-mkApplicationExceptionReply req ex = Message
-  { messageName = messageName req
-  , messageType = Exception
-  , messageId = messageId req
-  , messagePayload = pinch ex
-  }
+mkApplicationExceptionReply :: Message -> ApplicationException -> (Message, HeaderData)
+mkApplicationExceptionReply req ex = (msg, Transport.emptyHeaderData)
+  where
+    msg = Message
+      { messageName = messageName req
+      , messageType = Exception
+      , messageId = messageId req
+      , messagePayload = pinch ex
+      }
