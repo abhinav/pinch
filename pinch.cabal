@@ -59,6 +59,8 @@ library
       Pinch.Internal.TType
       Pinch.Internal.Value
       Pinch.Protocol
+      Pinch.Protocol.Common
+      Pinch.Protocol.Options
       Pinch.Protocol.Binary
       Pinch.Protocol.Compact
       Pinch.Server
@@ -67,6 +69,8 @@ library
   other-modules:
       Pinch.Internal.Bits
       Pinch.Internal.Pinchable.Parser
+      Pinch.Protocol.Options.Type
+      Pinch.Protocol.Internal
       Paths_pinch
   hs-source-dirs:
       src

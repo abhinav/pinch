@@ -12,7 +12,10 @@
 -- Stability   :  experimental
 --
 -- Implements the Thrift Compact Protocol as a 'Protocol'.
-module Pinch.Protocol.Compact (compactProtocol) where
+module Pinch.Protocol.Compact
+  ( compactProtocol
+  , compactProtocol'
+  ) where
 
 import Control.Monad
 import Data.Bits           hiding (shift)
@@ -35,18 +38,22 @@ import Pinch.Internal.Message
 import Pinch.Internal.TType
 import Pinch.Internal.Value
 import Pinch.Protocol         (Protocol (..))
+import Pinch.Protocol.Internal
+import Pinch.Protocol.Options (ProtocolOptions(..), defaultProtocolOptions)
 
 import qualified Pinch.Internal.Builder  as BB
 import qualified Pinch.Internal.FoldList as FL
 
+compactProtocol :: Protocol
+compactProtocol = compactProtocol' defaultProtocolOptions
 
 -- | Provides an implementation of the Thrift Compact Protocol.
-compactProtocol :: Protocol
-compactProtocol = Protocol
+compactProtocol' :: ProtocolOptions -> Protocol
+compactProtocol' options = Protocol
     { serializeValue     = compactSerialize
-    , deserializeValue'  = compactDeserialize ttype
+    , deserializeValue'  = compactDeserialize options ttype
     , serializeMessage   = compactSerializeMessage
-    , deserializeMessage' = compactDeserializeMessage
+    , deserializeMessage' = compactDeserializeMessage options
     }
 
 ------------------------------------------------------------------------------
@@ -63,8 +70,8 @@ compactSerializeMessage msg =
     string (TE.encodeUtf8 $ messageName msg) <>
     compactSerialize (messagePayload msg)
 
-compactDeserializeMessage :: G.Get Message
-compactDeserializeMessage = do
+compactDeserializeMessage :: ProtocolOptions -> G.Get Message
+compactDeserializeMessage opts = do
     pid <- G.getWord8
     when (pid /= protocolId) $ fail "Invalid protocol ID"
     w <- G.getWord8
@@ -72,8 +79,10 @@ compactDeserializeMessage = do
     when (ver /= version) $ fail $ "Unsupported version: " ++ show ver
     let code = w `shiftR` 5
     msgId <- parseVarint
-    msgName <- TE.decodeUtf8 <$> (parseVarint >>= G.getBytes . fromIntegral)
-    payload <- compactDeserialize ttype
+    nameLength <- fromIntegral <$> parseVarint
+    guardMaxMethodNameLength opts nameLength
+    msgName <- poMethodNameParser opts (poMaxMethodNameLength opts) nameLength
+    payload <- compactDeserialize opts ttype
     mtype <- case fromMessageCode code of
         Nothing -> fail $ "unknown message type: " ++ show code
         Just t -> return t
@@ -86,8 +95,8 @@ compactDeserializeMessage = do
 
 ------------------------------------------------------------------------------
 
-compactDeserialize :: TType a -> G.Get (Value a)
-compactDeserialize typ = case typ of
+compactDeserialize :: ProtocolOptions -> TType a -> G.Get (Value a)
+compactDeserialize opts typ = case typ of
   TBool      -> do
       n <- G.getInt8
       return $ VBool (n == 1)
@@ -96,11 +105,11 @@ compactDeserialize typ = case typ of
   TInt16     -> parseInt16
   TInt32     -> parseInt32
   TInt64     -> parseInt64
-  TBinary    -> parseBinary
-  TStruct    -> parseStruct
-  TMap       -> parseMap
-  TSet       -> parseSet
-  TList      -> parseList
+  TBinary    -> parseBinary opts
+  TStruct    -> parseStruct opts
+  TMap       -> parseMap opts
+  TSet       -> parseSet opts
+  TList      -> parseList opts
 
 intToZigZag :: Int64 -> Int64
 intToZigZag n =
@@ -143,17 +152,19 @@ parseInt32 = VInt32 . fromIntegral . zigZagToInt <$> parseVarint
 parseInt64 :: G.Get (Value TInt64)
 parseInt64 = VInt64 . fromIntegral . zigZagToInt <$> parseVarint
 
-parseBinary :: G.Get (Value TBinary)
-parseBinary = do
-    n <- parseVarint
-    when (n < 0) $
-        fail $ "parseBinary: invalid length " ++ show n
-    VBinary <$> G.getBytes (fromIntegral n)
+parseBinary :: ProtocolOptions -> G.Get (Value TBinary)
+parseBinary opts = do
+    n <- fromIntegral <$> parseVarint
+    guardNonNegativeSize "Binary length" n
+    guardMaxBinaryLength opts n
+    VBinary <$> G.getBytes n
 
 
-parseMap :: G.Get (Value TMap)
-parseMap = do
-    count <- parseVarint
+parseMap :: ProtocolOptions -> G.Get (Value TMap)
+parseMap opts = do
+    count <- fromIntegral <$> parseVarint
+    guardNonNegativeSize "Map size" count
+    guardMaxMapSize opts count
     case count of
       0 -> return VNullMap
       _ -> do
@@ -164,32 +175,37 @@ parseMap = do
           let ktype = cTypeToTType kctype
               vtype = cTypeToTType vctype
 
-          items <- FL.replicateM (fromIntegral count) $
-              MapItem <$> compactDeserialize ktype
-                      <*> compactDeserialize vtype
+          items <- FL.replicateM count $
+              MapItem <$> compactDeserialize opts ktype
+                      <*> compactDeserialize opts vtype
           return $ VMap items
 
 
 parseCollection
     :: (forall a. IsTType a => FL.FoldList (Value a) -> Value b)
+    -> (ProtocolOptions -> Int -> G.Get ())
+    -> (Int -> G.Get ())
+    -> ProtocolOptions
     -> G.Get (Value b)
-parseCollection buildValue = do
+parseCollection buildValue guardMaxSize guardNonNegativeSize opts = do
     sizeAndType <- G.getWord8
     SomeCType ctype <- getCType (sizeAndType .&. 0x0f)
-    count <- case sizeAndType `shiftR` 4 of
+    count <- fromIntegral <$> case sizeAndType `shiftR` 4 of
                  0xf -> parseVarint
                  n   -> return $ fromIntegral n
+    guardNonNegativeSize count
+    guardMaxSize opts count
     let vtype  = cTypeToTType ctype
-    buildValue <$> FL.replicateM (fromIntegral count) (compactDeserialize vtype)
+    buildValue <$> FL.replicateM count (compactDeserialize opts vtype)
 
-parseSet :: G.Get (Value TSet)
-parseSet = parseCollection VSet
+parseSet :: ProtocolOptions -> G.Get (Value TSet)
+parseSet = parseCollection VSet guardMaxSetSize (guardNonNegativeSize "Set size")
 
-parseList :: G.Get (Value TList)
-parseList = parseCollection VList
+parseList :: ProtocolOptions -> G.Get (Value TList)
+parseList = parseCollection VList guardMaxListLength (guardNonNegativeSize "List length")
 
-parseStruct :: G.Get (Value TStruct)
-parseStruct = loop M.empty 0
+parseStruct :: ProtocolOptions -> G.Get (Value TStruct)
+parseStruct opts = loop M.empty 0
   where
     loop :: HashMap Int16 SomeValue -> Int16 -> G.Get (Value TStruct)
     loop fields lastFieldId = do
@@ -206,7 +222,7 @@ parseStruct = loop M.empty 0
                   CBoolFalse -> return (SomeValue $ VBool False)
                   _          ->
                     let vtype = cTypeToTType ctype
-                     in SomeValue <$> compactDeserialize vtype
+                     in SomeValue <$> compactDeserialize opts vtype
                 loop (M.insert fieldId value fields) fieldId
 
 

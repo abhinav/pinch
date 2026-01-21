@@ -1,10 +1,13 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE KindSignatures             #-}
+
 module Pinch.ClientServerSpec (spec) where
 
 import           Control.Concurrent       (forkFinally)
@@ -30,6 +33,8 @@ import           Pinch.Client             hiding (client)
 import qualified Pinch.Client             (client)
 import           Pinch.Server
 import           Pinch.Transport
+import           GHC.TypeLits (Symbol, KnownSymbol, symbolVal)
+import           Data.Proxy (Proxy(..))
 
 echoServer :: ThriftServer
 echoServer = createServer $ \_ -> Just $ CallHandler $ \_ (r :: Value TStruct) -> do
@@ -74,17 +79,25 @@ errorServer = createServer $ \nm -> case nm of
   "hs_ex" -> Just $ CallHandler $ \_ (_ :: Value TStruct) -> error "nononono" :: IO (Value TStruct)
   _ -> Nothing
 
+newtype MaskShow (sym :: Symbol) a = MaskShow a
+  deriving Arbitrary
+
+instance KnownSymbol sym => Show (MaskShow sym a) where
+  show = const (symbolVal (Proxy :: Proxy sym))
+
+type MaskShowProtocol = MaskShow "protocol" Protocol
+
 spec :: Spec
 spec = do
   describe "Client/Server" $ do
-    prop "echo test" $ withMaxSuccess 10 $ \(request :: Value TStruct) -> ioProperty $
-      withLoopbackServer echoServer $ \client -> do
+    prop "echo test" $ withMaxSuccess 20 $ \(MaskShow protocol :: MaskShowProtocol, request :: Value TStruct) -> ioProperty $ do
+      withLoopbackServer protocol echoServer $ \client -> do
         reply <- call client $ TCall "" request
         pure $
           reply === request
 
     it "calculator" $ do
-      withLoopbackServer calcServer $ \client -> do
+      withLoopbackServer binaryProtocol calcServer $ \client -> do
         r1 <- call client $ mkCall 10 20 Plus
         r1 `shouldBe` CalcResult (Field $ Just 30) (Field Nothing)
 
@@ -99,7 +112,7 @@ spec = do
 
     it "oneway" $ do
       (srv, ref) <- onewayServer
-      withLoopbackServer srv $ \client -> do
+      withLoopbackServer binaryProtocol srv $ \client -> do
         let val = struct [1 .= True, 2 .= ("Hello" :: Text)]
         _ <- call client $ TOneway "test" val
         r1 <- takeMVar ref
@@ -112,7 +125,7 @@ spec = do
 
     it "multiplex" $ do
       let srv = multiplex [("calc", calcServer), ("echo", echoServer)]
-      withLoopbackServer srv $ \client -> do
+      withLoopbackServer binaryProtocol srv $ \client -> do
         r1 <- call (multiplexClient client "calc") $ mkCall 10 20 Plus
         r1 `shouldBe` CalcResult (Field $ Just 30) (Field Nothing)
 
@@ -121,7 +134,7 @@ spec = do
         r2 `shouldBe` payload
 
     it "exceptions" $ do
-      withLoopbackServer errorServer $ \client -> do
+      withLoopbackServer binaryProtocol errorServer $ \client -> do
         let val = struct [1 .= True, 2 .= ("Hello" :: Text)]
         _ <- call client (TCall "app_ex" val :: ThriftCall (Value TStruct)) `shouldThrow` \e ->
           case e of
@@ -140,13 +153,13 @@ spec = do
     mkCall inp1 inp2 op = TCall "calc" $ pinch $ CalcRequest (Field inp1) (Field inp2) (Field $ op $ Enumeration)
 
 
-withLoopbackServer :: ThriftServer -> (Client -> IO a) -> IO a
-withLoopbackServer srv cont = do
+withLoopbackServer :: Protocol -> ThriftServer -> (Client -> IO a) -> IO a
+withLoopbackServer protocol srv cont = do
     addr <- resolve Stream (Just "127.0.0.1") "54093" True
     bracketOnError (open addr) close (\sock ->
       withAsync (loop sock `finally` close sock) $ \_ ->
         runTCPClient "127.0.0.1" "54093" $ \s -> do
-          c <- Pinch.Client.client <$> createChannel s framedTransport binaryProtocol
+          c <- Pinch.Client.client <$> createChannel s framedTransport protocol
           cont c
       )
   where
@@ -157,7 +170,7 @@ withLoopbackServer srv cont = do
         \(conn, _peer) ->
           void $ forkFinally (runServer conn) (const $ gracefulClose conn 5000)
     runServer sock = do
-      createChannel sock framedTransport binaryProtocol
+      createChannel sock framedTransport protocol
         >>= runConnection mempty srv
 
     resolve :: SocketType -> Maybe HostName -> S.ServiceName -> Bool -> IO AddrInfo
